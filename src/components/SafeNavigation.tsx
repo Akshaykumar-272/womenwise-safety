@@ -4,19 +4,34 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const SafeNavigation = () => {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [routeFound, setRouteFound] = useState(false);
+  const { toast } = useToast();
   
   const handleFindRoute = () => {
-    if (!origin || !destination) return;
+    if (!origin || !destination) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both start and destination locations",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsSearching(true);
     // In a real app, this would call a maps API
     setTimeout(() => {
       setIsSearching(false);
+      setRouteFound(true);
+      toast({
+        title: "Route Found",
+        description: "Safe route has been calculated",
+      });
     }, 1500);
   };
 
@@ -66,11 +81,22 @@ const SafeNavigation = () => {
         </div>
       </div>
       
-      <div className="h-[200px] bg-safety-50 relative">
+      <div className={`h-[200px] ${routeFound ? 'bg-safety-100' : 'bg-safety-50'} relative transition-colors duration-300`}>
         {/* Placeholder for map - in real app this would be an actual map */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm">Map preview would appear here</p>
-        </div>
+        {!routeFound ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="text-muted-foreground text-sm">Map preview would appear here</p>
+          </div>
+        ) : (
+          <div className="absolute inset-0 p-2">
+            {/* Mock map with route visualization */}
+            <div className="h-full w-full relative rounded-lg bg-white/90 shadow-sm">
+              <div className="absolute left-[20%] top-[30%] h-2 w-2 rounded-full bg-safety-600 z-10" />
+              <div className="absolute right-[25%] bottom-[25%] h-2 w-2 rounded-full bg-safety-600 z-10" />
+              <div className="absolute left-[21%] top-[31%] right-[26%] bottom-[26%] border-2 border-safety-500 rounded-full border-dashed z-5" />
+            </div>
+          </div>
+        )}
         
         {/* Safety indicators */}
         <div className="absolute bottom-3 left-3 right-3 p-3 bg-white/90 backdrop-blur-sm rounded-lg shadow-soft flex items-center justify-between">

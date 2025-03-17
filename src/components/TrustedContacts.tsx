@@ -5,14 +5,44 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Card } from '@/components/ui/card';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
-const contacts = [
+// Initial sample contacts
+const initialContacts = [
   { id: 1, name: 'Emma Wilson', relation: 'Sister', phone: '+1 234 567 8901', image: '' },
   { id: 2, name: 'Michael Chen', relation: 'Friend', phone: '+1 234 567 8902', image: '' },
   { id: 3, name: 'Sarah Johnson', relation: 'Mother', phone: '+1 234 567 8903', image: '' },
 ];
 
 const TrustedContacts = () => {
+  const [contacts, setContacts] = useState(initialContacts);
+  const { toast } = useToast();
+
+  const handleAddContact = () => {
+    // This would normally open a modal, but for simplicity we'll just add a sample contact
+    const newContact = {
+      id: contacts.length + 1,
+      name: 'New Contact',
+      relation: 'Friend',
+      phone: '+1 234 567 8904',
+      image: ''
+    };
+    
+    setContacts([...contacts, newContact]);
+    toast({
+      title: "Contact Added",
+      description: "New emergency contact has been added",
+    });
+  };
+
+  const handleCallContact = (contact: typeof contacts[0]) => {
+    toast({
+      title: "Calling Contact",
+      description: `Calling ${contact.name} at ${contact.phone}`,
+    });
+  };
+
   return (
     <Card className="overflow-hidden">
       <div className="p-5">
@@ -21,7 +51,7 @@ const TrustedContacts = () => {
             <ShieldCheck className="h-5 w-5 text-safety-500" />
             Trusted Contacts
           </h3>
-          <Button variant="outline" size="sm" className="h-8">
+          <Button variant="outline" size="sm" className="h-8" onClick={handleAddContact}>
             <Plus className="h-3.5 w-3.5 mr-1" />
             Add New
           </Button>
@@ -54,6 +84,7 @@ const TrustedContacts = () => {
                   variant="ghost"
                   size="icon"
                   className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-safety-500"
+                  onClick={() => handleCallContact(contact)}
                 >
                   <Phone className="h-4 w-4" />
                 </Button>

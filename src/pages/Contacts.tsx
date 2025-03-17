@@ -7,12 +7,31 @@ import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import TrustedContacts from '@/components/TrustedContacts';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+interface Contact {
+  id: number;
+  name: string;
+  relation: string;
+  phone: string;
+}
 
 const Contacts = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [showAddContact, setShowAddContact] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([
+    { id: 1, name: "Jane Smith", relation: "Sister", phone: "+1 234-567-8901" },
+    { id: 2, name: "Mark Johnson", relation: "Friend", phone: "+1 234-567-8902" },
+    { id: 3, name: "Sarah Williams", relation: "Mother", phone: "+1 234-567-8903" },
+  ]);
+  const [newContact, setNewContact] = useState({
+    name: '',
+    phone: '',
+    relation: ''
+  });
 
   useEffect(() => {
     toast({
@@ -21,12 +40,38 @@ const Contacts = () => {
     });
   }, [toast]);
 
-  // Mock data for demonstration
-  const mockContacts = [
-    { id: 1, name: "Jane Smith", relation: "Sister", phone: "+1 234-567-8901" },
-    { id: 2, name: "Mark Johnson", relation: "Friend", phone: "+1 234-567-8902" },
-    { id: 3, name: "Sarah Williams", relation: "Mother", phone: "+1 234-567-8903" },
-  ];
+  const handleAddContact = () => {
+    if (!newContact.name || !newContact.phone || !newContact.relation) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill all contact details",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newContactWithId = {
+      ...newContact,
+      id: Date.now()
+    };
+
+    setContacts([...contacts, newContactWithId]);
+    setNewContact({ name: '', phone: '', relation: '' });
+    setShowAddContact(false);
+    
+    toast({
+      title: "Contact Added",
+      description: `${newContact.name} has been added to your trusted contacts`,
+    });
+  };
+
+  const handleRemoveContact = (id: number) => {
+    setContacts(contacts.filter(contact => contact.id !== id));
+    toast({
+      title: "Contact Removed",
+      description: "Contact has been removed from your trusted contacts",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,33 +104,53 @@ const Contacts = () => {
           <div className="lg:col-span-2 bg-white rounded-xl p-6 shadow-soft">
             <h2 className="text-xl font-medium mb-6">Your Emergency Contacts</h2>
             
-            <div className="space-y-4">
-              {mockContacts.map(contact => (
-                <div 
-                  key={contact.id} 
-                  className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border"
+            {contacts.length === 0 ? (
+              <div className="text-center py-8 bg-muted/30 rounded-lg">
+                <User className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+                <p className="text-muted-foreground">You haven't added any emergency contacts yet</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => setShowAddContact(true)}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="bg-safety-100 h-10 w-10 rounded-full flex items-center justify-center text-safety-500">
-                      <User className="h-5 w-5" />
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add Your First Contact
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {contacts.map(contact => (
+                  <div 
+                    key={contact.id} 
+                    className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="bg-safety-100 h-10 w-10 rounded-full flex items-center justify-center text-safety-500">
+                        <User className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{contact.name}</p>
+                        <p className="text-sm text-muted-foreground">{contact.relation}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{contact.name}</p>
-                      <p className="text-sm text-muted-foreground">{contact.relation}</p>
+                    
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-safety-500">
+                        <Phone className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="rounded-full h-8 w-8"
+                        onClick={() => handleRemoveContact(contact.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-safety-500">
-                      <Phone className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
             
             <div className="mt-6 p-4 bg-muted/30 rounded-lg">
               <p className="text-sm text-muted-foreground text-center">
@@ -104,7 +169,15 @@ const Contacts = () => {
                   Share your real-time location with selected contacts for added safety
                 </p>
                 
-                <Button className="w-full bg-safety-500 hover:bg-safety-600">
+                <Button 
+                  className="w-full bg-safety-500 hover:bg-safety-600"
+                  onClick={() => {
+                    toast({
+                      title: "Location Shared",
+                      description: "Your location has been shared with trusted contacts",
+                    });
+                  }}
+                >
                   <MapPin className="h-4 w-4 mr-2" />
                   Share Location
                 </Button>
@@ -136,29 +209,32 @@ const Contacts = () => {
             
             <div className="space-y-4 mb-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Name</label>
-                <input 
+                <Label>Name</Label>
+                <Input 
                   type="text" 
-                  placeholder="Contact name" 
-                  className="w-full border border-input rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-safety-500"
+                  placeholder="Contact name"
+                  value={newContact.name}
+                  onChange={(e) => setNewContact({...newContact, name: e.target.value})}
                 />
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium">Phone Number</label>
-                <input 
+                <Label>Phone Number</Label>
+                <Input 
                   type="tel" 
-                  placeholder="Phone number" 
-                  className="w-full border border-input rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-safety-500"
+                  placeholder="Phone number"
+                  value={newContact.phone}
+                  onChange={(e) => setNewContact({...newContact, phone: e.target.value})}
                 />
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium">Relation</label>
-                <input 
+                <Label>Relation</Label>
+                <Input 
                   type="text" 
-                  placeholder="E.g. Friend, Family" 
-                  className="w-full border border-input rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-safety-500"
+                  placeholder="E.g. Friend, Family"
+                  value={newContact.relation}
+                  onChange={(e) => setNewContact({...newContact, relation: e.target.value})}
                 />
               </div>
             </div>
@@ -173,13 +249,7 @@ const Contacts = () => {
               </Button>
               <Button 
                 className="flex-1 bg-safety-500 hover:bg-safety-600"
-                onClick={() => {
-                  toast({
-                    title: "Contact Added",
-                    description: "New emergency contact has been added",
-                  });
-                  setShowAddContact(false);
-                }}
+                onClick={handleAddContact}
               >
                 Add Contact
               </Button>
