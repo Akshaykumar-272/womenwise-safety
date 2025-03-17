@@ -9,6 +9,7 @@ interface FeatureCardProps {
   variant?: 'default' | 'alert' | 'glass';
   onClick?: () => void;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 const FeatureCard = ({
@@ -18,6 +19,7 @@ const FeatureCard = ({
   variant = 'default',
   onClick,
   className,
+  style,
 }: FeatureCardProps) => {
   const variants = {
     default: 'bg-white hover:shadow-hover border border-border/40',
@@ -34,6 +36,7 @@ const FeatureCard = ({
         className
       )}
       onClick={onClick}
+      style={style}
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between mb-2">

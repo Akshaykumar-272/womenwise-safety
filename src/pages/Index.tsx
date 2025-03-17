@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Shield, BellRing, MapPin, Clock, PhoneCall, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import EmergencySOS from '@/components/EmergencySOS';
 import SafeNavigation from '@/components/SafeNavigation';
@@ -11,10 +12,13 @@ import HotspotMap from '@/components/HotspotMap';
 import MedicalFinder from '@/components/MedicalFinder';
 import FeatureCard from '@/components/FeatureCard';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Index = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     // Simulate loading and show welcome toast
@@ -34,23 +38,35 @@ const Index = () => {
       title: "Quick Emergency Call",
       description: "Instantly connect with emergency services with a single tap",
       icon: <PhoneCall className="h-5 w-5" />,
+      path: "/emergency"
     },
     {
       title: "Real-time Tracking",
       description: "Share your location in real-time with trusted contacts",
       icon: <MapPin className="h-5 w-5" />,
+      path: "/safe-routes"
     },
     {
       title: "Safety Alerts",
       description: "Receive notifications about safety concerns in your area",
       icon: <BellRing className="h-5 w-5" />,
+      path: "/resources"
     },
     {
       title: "Medical Facilities",
       description: "Quick access to nearby hospitals and emergency services",
       icon: <Heart className="h-5 w-5" />,
+      path: "/resources"
     },
   ];
+
+  const handleNavigation = (path: string) => {
+    toast({
+      title: "Navigating",
+      description: `Going to ${path.replace('/', '')} page`,
+    });
+    navigate(path);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -76,10 +92,17 @@ const Index = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button className="bg-safety-500 hover:bg-safety-600 text-white shadow-soft px-6 py-6 text-base">
+                <Button 
+                  className="bg-safety-500 hover:bg-safety-600 text-white shadow-soft px-6 py-6 text-base"
+                  onClick={() => handleNavigation('/emergency')}
+                >
                   Get Started
                 </Button>
-                <Button variant="outline" className="border-safety-500 text-safety-700 hover:bg-safety-50 px-6 py-6 text-base">
+                <Button 
+                  variant="outline" 
+                  className="border-safety-500 text-safety-700 hover:bg-safety-50 px-6 py-6 text-base"
+                  onClick={() => handleNavigation('/resources')}
+                >
                   Learn More
                 </Button>
               </div>
@@ -133,8 +156,9 @@ const Index = () => {
                 title={feature.title}
                 description={feature.description}
                 icon={feature.icon}
-                className={`animate-fade-in`}
+                className="animate-fade-in cursor-pointer"
                 style={{ animationDelay: `${i * 100}ms` }}
+                onClick={() => handleNavigation(feature.path)}
               />
             ))}
           </div>
@@ -142,12 +166,20 @@ const Index = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-6">
-                <SafeNavigation />
-                <MedicalFinder />
+                <div onClick={() => handleNavigation('/safe-routes')} className="cursor-pointer">
+                  <SafeNavigation />
+                </div>
+                <div onClick={() => handleNavigation('/resources')} className="cursor-pointer">
+                  <MedicalFinder />
+                </div>
               </div>
               <div className="space-y-6">
-                <HotspotMap />
-                <TrustedContacts />
+                <div onClick={() => handleNavigation('/resources')} className="cursor-pointer">
+                  <HotspotMap />
+                </div>
+                <div onClick={() => handleNavigation('/contacts')} className="cursor-pointer">
+                  <TrustedContacts />
+                </div>
               </div>
             </div>
             <div className="flex flex-col justify-center items-center bg-gradient-to-b from-alert-50 to-white rounded-xl p-8 shadow-soft">
