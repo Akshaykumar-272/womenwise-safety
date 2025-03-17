@@ -1,9 +1,8 @@
 
-import { MapPin, Navigation, AlertTriangle, Shield } from 'lucide-react';
+import { MapPin, Navigation, AlertTriangle, Shield, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 const SafeNavigation = () => {
@@ -33,6 +32,28 @@ const SafeNavigation = () => {
         description: "Safe route has been calculated",
       });
     }, 1500);
+  };
+  
+  const openGoogleMaps = () => {
+    if (!origin || !destination) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both start and destination locations",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Create a Google Maps URL with the origin and destination for navigation
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=walking`;
+    
+    // Open Google Maps in a new tab
+    window.open(googleMapsUrl, '_blank');
+    
+    toast({
+      title: "Opening Google Maps",
+      description: "Navigation started in Google Maps",
+    });
   };
 
   return (
@@ -94,6 +115,16 @@ const SafeNavigation = () => {
               <div className="absolute left-[20%] top-[30%] h-2 w-2 rounded-full bg-safety-600 z-10" />
               <div className="absolute right-[25%] bottom-[25%] h-2 w-2 rounded-full bg-safety-600 z-10" />
               <div className="absolute left-[21%] top-[31%] right-[26%] bottom-[26%] border-2 border-safety-500 rounded-full border-dashed z-5" />
+              
+              {/* Google Maps button */}
+              <Button 
+                className="absolute top-2 right-2 bg-safety-500 hover:bg-safety-600"
+                size="sm"
+                onClick={openGoogleMaps}
+              >
+                <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                Open in Google Maps
+              </Button>
             </div>
           </div>
         )}

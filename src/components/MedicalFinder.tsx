@@ -1,11 +1,14 @@
 
-import { Heart, Clock, MapPin, Star, ExternalLink } from 'lucide-react';
+import { Heart, Clock, MapPin, Star, ExternalLink, Navigation } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 
-const facilities = [
+const initialFacilities = [
   { 
     id: 1, 
     name: 'City General Hospital', 
@@ -13,6 +16,7 @@ const facilities = [
     open: '24/7',
     distance: '1.2 km',
     rating: 4.5,
+    address: '123 Main St, Downtown'
   },
   { 
     id: 2, 
@@ -21,6 +25,7 @@ const facilities = [
     open: '8AM - 8PM',
     distance: '2.5 km',
     rating: 4.8,
+    address: '456 Oak Ave, Midtown'
   },
   { 
     id: 3, 
@@ -29,10 +34,85 @@ const facilities = [
     open: '24/7',
     distance: '3.8 km',
     rating: 4.2,
+    address: '789 Pine Blvd, Uptown'
   },
 ];
 
 const MedicalFinder = () => {
+  const [userLocation, setUserLocation] = useState('');
+  const [facilities, setFacilities] = useState(initialFacilities);
+  const [facilityType, setFacilityType] = useState('all');
+  const [isSearching, setIsSearching] = useState(false);
+  const { toast } = useToast();
+
+  const handleSearch = () => {
+    if (!userLocation) {
+      toast({
+        title: "Missing Location",
+        description: "Please enter your current location",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    // Simulate API call to find nearby facilities
+    setTimeout(() => {
+      // Filter based on facility type if needed
+      let filtered = [...initialFacilities];
+      if (facilityType !== 'all') {
+        filtered = initialFacilities.filter(f => f.type.toLowerCase() === facilityType.toLowerCase());
+      }
+      
+      // Update with new "search results"
+      setFacilities(filtered);
+      setIsSearching(false);
+      
+      toast({
+        title: "Facilities Found",
+        description: `Found ${filtered.length} medical facilities near you`,
+      });
+    }, 1500);
+  };
+
+  const openGoogleMapsDirections = (facility: typeof facilities[0]) => {
+    if (!userLocation) {
+      toast({
+        title: "Missing Location",
+        description: "Please enter your current location first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Create Google Maps directions URL
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(userLocation)}&destination=${encodeURIComponent(facility.address)}&travelmode=driving`;
+    
+    // Open in new tab
+    window.open(googleMapsUrl, '_blank');
+    
+    toast({
+      title: "Opening Directions",
+      description: `Navigating to ${facility.name}`,
+    });
+  };
+
+  const handleFacilityTypeChange = (type: string) => {
+    setFacilityType(type);
+    if (userLocation) {
+      // Auto-search when changing facility type if location is already entered
+      setIsSearching(true);
+      setTimeout(() => {
+        let filtered = [...initialFacilities];
+        if (type !== 'all') {
+          filtered = initialFacilities.filter(f => f.type.toLowerCase() === type.toLowerCase());
+        }
+        setFacilities(filtered);
+        setIsSearching(false);
+      }, 800);
+    }
+  };
+
   return (
     <Card className="overflow-hidden">
       <div className="p-5">
@@ -41,8 +121,60 @@ const MedicalFinder = () => {
             <Heart className="h-5 w-5 text-safety-500" />
             Medical Facilities
           </h3>
-          <Button variant="outline" size="sm" className="h-8">
-            View Map
+        </div>
+        
+        {/* Search section */}
+        <div className="mb-5 space-y-3">
+          <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Enter your location"
+              className="pl-10"
+              value={userLocation}
+              onChange={(e) => setUserLocation(e.target.value)}
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={`text-xs flex-1 ${facilityType === 'all' ? 'bg-safety-100 text-safety-700 border-safety-300' : ''}`}
+              onClick={() => handleFacilityTypeChange('all')}
+            >
+              All
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={`text-xs flex-1 ${facilityType === 'hospital' ? 'bg-safety-100 text-safety-700 border-safety-300' : ''}`}
+              onClick={() => handleFacilityTypeChange('hospital')}
+            >
+              Hospitals
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className={`text-xs flex-1 ${facilityType === 'clinic' ? 'bg-safety-100 text-safety-700 border-safety-300' : ''}`}
+              onClick={() => handleFacilityTypeChange('clinic')}
+            >
+              Clinics
+            </Button>
+          </div>
+          
+          <Button
+            onClick={handleSearch}
+            disabled={!userLocation || isSearching}
+            className="w-full bg-safety-500 hover:bg-safety-600"
+          >
+            {isSearching ? (
+              <span className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded-full border-2 border-t-transparent border-white animate-spin" />
+                Searching...
+              </span>
+            ) : (
+              "Find Nearby Facilities"
+            )}
           </Button>
         </div>
         
@@ -68,9 +200,11 @@ const MedicalFinder = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-safety-500"
+                    className="h-8 w-8 text-safety-500"
+                    onClick={() => openGoogleMapsDirections(facility)}
+                    title="Get Directions"
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <Navigation className="h-4 w-4" />
                   </Button>
                 </div>
                 
@@ -90,6 +224,10 @@ const MedicalFinder = () => {
                     <span>{facility.rating}</span>
                   </div>
                 </div>
+                
+                <p className="text-xs text-muted-foreground mt-1">
+                  {facility.address}
+                </p>
               </div>
               
               {facility.id !== facilities.length && (

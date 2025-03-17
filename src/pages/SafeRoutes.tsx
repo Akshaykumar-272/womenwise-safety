@@ -1,6 +1,5 @@
-
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Navigation, Map, Shield } from 'lucide-react';
+import { ArrowLeft, Navigation, Map, Shield, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +13,8 @@ const SafeRoutes = () => {
   const isMobile = useIsMobile();
   const [showDirections, setShowDirections] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+  const [startLocation, setStartLocation] = useState('');
+  const [destination, setDestination] = useState('');
 
   useEffect(() => {
     toast({
@@ -29,6 +30,33 @@ const SafeRoutes = () => {
       title: "Route Selected",
       description: `${routeType} route has been selected`,
     });
+  };
+
+  const handleFindRoute = () => {
+    if (!startLocation || !destination) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both start and destination locations",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setShowDirections(true);
+    toast({
+      title: "Route Found",
+      description: "Safe route has been calculated",
+    });
+  };
+
+  const openGoogleMaps = (origin: string, destination: string) => {
+    if (!origin || !destination) {
+      return;
+    }
+    
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=walking`;
+    
+    window.open(googleMapsUrl, '_blank');
   };
 
   return (
@@ -86,7 +114,6 @@ const SafeRoutes = () => {
             ) : (
               <div className="bg-safety-50 rounded-lg aspect-video relative flex items-center justify-center">
                 <div className="absolute inset-0 p-4">
-                  {/* Mock map with route visualization */}
                   <div className="h-full w-full relative rounded-lg bg-white/90 shadow-sm overflow-hidden">
                     <div className="absolute left-[20%] top-[30%] h-3 w-3 rounded-full bg-safety-600 z-10 animate-pulse" />
                     <div className="absolute right-[25%] bottom-[25%] h-3 w-3 rounded-full bg-safety-600 z-10 animate-pulse" />
@@ -113,10 +140,18 @@ const SafeRoutes = () => {
                         </div>
                       )}
                     </div>
+                    
+                    <Button 
+                      className="absolute top-2 right-2 bg-safety-500 hover:bg-safety-600"
+                      size="sm"
+                      onClick={() => openGoogleMaps(startLocation, destination)}
+                    >
+                      <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                      Open in Google Maps
+                    </Button>
                   </div>
                 </div>
                 
-                {/* Directions panel */}
                 <div className="absolute top-2 right-2 bg-white shadow-md rounded-md p-3 w-48 text-xs">
                   <h4 className="font-medium mb-2 pb-1 border-b border-border/40">Directions</h4>
                   <ol className="space-y-2">
@@ -139,7 +174,13 @@ const SafeRoutes = () => {
           </div>
           
           <div className="space-y-6">
-            <EnhancedRouteForm setShowDirections={setShowDirections} />
+            <EnhancedRouteForm 
+              setShowDirections={setShowDirections} 
+              setStartLocation={setStartLocation}
+              setDestination={setDestination}
+              startLocation={startLocation}
+              destination={destination}
+            />
             <SafeNavigation />
           </div>
         </div>
@@ -148,28 +189,20 @@ const SafeRoutes = () => {
   );
 };
 
-// Enhanced Route Form Component
-const EnhancedRouteForm = ({ setShowDirections }: { setShowDirections: (show: boolean) => void }) => {
-  const [startLocation, setStartLocation] = useState('');
-  const [destination, setDestination] = useState('');
+const EnhancedRouteForm = ({ 
+  setShowDirections, 
+  setStartLocation, 
+  setDestination,
+  startLocation,
+  destination
+}: { 
+  setShowDirections: (show: boolean) => void;
+  setStartLocation: (location: string) => void;
+  setDestination: (location: string) => void;
+  startLocation: string;
+  destination: string;
+}) => {
   const { toast } = useToast();
-
-  const handleFindRoute = () => {
-    if (!startLocation || !destination) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter both start and destination locations",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setShowDirections(true);
-    toast({
-      title: "Route Found",
-      description: "Safe route has been calculated",
-    });
-  };
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-soft">

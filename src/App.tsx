@@ -10,6 +10,7 @@ import Emergency from "./pages/Emergency";
 import SafeRoutes from "./pages/SafeRoutes";
 import Contacts from "./pages/Contacts";
 import Resources from "./pages/Resources";
+import ResourceDetail from "./pages/ResourceDetail";
 import NotFound from "./pages/NotFound";
 
 // Create a client
@@ -33,6 +34,7 @@ const App = () => {
             <Route path="/safe-routes" element={<SafeRoutes />} />
             <Route path="/contacts" element={<Contacts />} />
             <Route path="/resources" element={<Resources />} />
+            <Route path="/resources/:resourceId" element={<ResourceDetail />} />
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>

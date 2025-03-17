@@ -24,30 +24,34 @@ const Resources = () => {
 
   const resources = [
     {
+      id: "womens-safety-guidelines",
       title: "Women's Safety Guidelines",
       description: "Essential tips and best practices for staying safe in various situations",
       icon: <Info className="h-5 w-5" />,
-      link: "#"
     },
     {
+      id: "legal-resources",
       title: "Legal Resources",
       description: "Information about your rights and legal assistance",
       icon: <BookOpen className="h-5 w-5" />,
-      link: "#"
     },
     {
+      id: "support-organizations",
       title: "Support Organizations",
       description: "List of NGOs and groups providing support to women",
       icon: <Building className="h-5 w-5" />,
-      link: "#"
     },
     {
+      id: "medical-support",
       title: "Medical Support",
       description: "Information about medical services specializing in women's health",
       icon: <Heart className="h-5 w-5" />,
-      link: "#"
     }
   ];
+
+  const handleLearnMore = (resourceId: string) => {
+    navigate(`/resources/${resourceId}`);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,7 +81,7 @@ const Resources = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {resources.map(resource => (
                 <div 
-                  key={resource.title} 
+                  key={resource.id} 
                   className="bg-white p-6 rounded-xl shadow-soft hover:shadow-hover transition-shadow"
                 >
                   <div className="flex items-start gap-4">
@@ -87,13 +91,14 @@ const Resources = () => {
                     <div>
                       <h3 className="font-medium text-lg mb-2">{resource.title}</h3>
                       <p className="text-muted-foreground mb-4">{resource.description}</p>
-                      <a 
-                        href={resource.link}
-                        className="inline-flex items-center text-safety-600 hover:text-safety-700 text-sm font-medium"
+                      <Button 
+                        variant="ghost"
+                        className="inline-flex items-center text-safety-600 hover:text-safety-700 text-sm font-medium p-0 h-auto hover:bg-transparent"
+                        onClick={() => handleLearnMore(resource.id)}
                       >
                         Learn more
                         <ExternalLink className="h-3.5 w-3.5 ml-1" />
-                      </a>
+                      </Button>
                     </div>
                   </div>
                 </div>
