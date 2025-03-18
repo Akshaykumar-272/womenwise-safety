@@ -25,8 +25,8 @@ const Index = () => {
     const timer = setTimeout(() => {
       setIsLoaded(true);
       toast({
-        title: "Welcome to WomenWise",
-        description: "Your personal safety companion",
+        title: "Welcome to W-Safe",
+        description: "Technology for Women's Security",
       });
     }, 500);
 
@@ -80,14 +80,14 @@ const Index = () => {
               <div className="space-y-2">
                 <div className="inline-flex items-center px-3 py-1 rounded-full bg-safety-100 text-safety-700 text-xs font-medium mb-2">
                   <Shield className="h-3.5 w-3.5 mr-1.5" />
-                  Personal Safety Platform
+                  Technology for Women's Security
                 </div>
                 <h1 className="font-medium tracking-tight">
                   Stay Safe & <br />
                   <span className="text-safety-600">Protected</span> Anywhere
                 </h1>
                 <p className="text-lg text-muted-foreground max-w-lg">
-                  WomenWise empowers you to navigate the world with confidence through emergency assistance, safe navigation, and community support.
+                  W-Safe empowers you to navigate the world with confidence through emergency assistance, safe navigation, and community support.
                 </p>
               </div>
 
@@ -211,7 +211,7 @@ const Index = () => {
             <div className="flex items-center gap-2 font-medium text-xl mb-4 md:mb-0">
               <Shield className="h-6 w-6 text-safety-500" />
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-safety-500 to-safety-700">
-                WomenWise
+                W-Safe
               </span>
             </div>
             <div className="flex items-center gap-6">
@@ -231,7 +231,7 @@ const Index = () => {
           </div>
           <Separator className="mb-6" />
           <p className="text-xs text-center text-muted-foreground">
-            WomenWise © {new Date().getFullYear()} — Your personal safety companion. All rights reserved.
+            W-Safe © {new Date().getFullYear()} — Technology for Women's Security. All rights reserved.
           </p>
         </div>
       </footer>

@@ -111,7 +111,7 @@ const Header = () => {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 font-medium text-xl transition-transform hover:scale-[1.02]">
           <Shield className="h-6 w-6 text-safety-500" />
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-safety-500 to-safety-700">WomenWise</span>
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-safety-500 to-safety-700">W-Safe</span>
         </Link>
 
         {/* Mobile Menu Button */}
