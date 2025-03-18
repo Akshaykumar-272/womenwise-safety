@@ -1,5 +1,5 @@
 
-import { UserCircle, Plus, Phone, UserRound, ShieldCheck } from 'lucide-react';
+import { UserCircle, Plus, Phone, UserRound, ShieldCheck, MessageSquare, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,10 @@ interface Contact {
 
 const TrustedContacts = () => {
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [showSmsModal, setShowSmsModal] = useState(false);
+  const [smsMessage, setSmsMessage] = useState('');
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const { toast } = useToast();
 
   // This would normally fetch contacts from a backend API
@@ -37,6 +41,21 @@ const TrustedContacts = () => {
       } catch (error) {
         console.error("Error parsing saved contacts:", error);
       }
+    }
+    
+    // Get current location for emergency messages
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setCurrentLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+        }
+      );
     }
   }, []);
 
@@ -73,6 +92,35 @@ const TrustedContacts = () => {
     setTimeout(() => {
       window.location.href = `tel:${contact.phone.replace(/\s+/g, '')}`;
     }, 1000);
+  };
+
+  const handleSendSMS = (contact: Contact) => {
+    setSelectedContact(contact);
+    setSmsMessage(`EMERGENCY ALERT: I need help! `);
+    
+    if (currentLocation) {
+      setSmsMessage(prev => `${prev}My location: https://www.google.com/maps?q=${currentLocation.lat},${currentLocation.lng}`);
+    }
+    
+    setShowSmsModal(true);
+  };
+
+  const sendSMS = () => {
+    if (!selectedContact) return;
+    
+    toast({
+      title: "SMS Alert Sent",
+      description: `Emergency message sent to ${selectedContact.name}`,
+    });
+    
+    // In a real app with a backend, this would make an API call to send the SMS
+    console.log(`SMS sent to ${selectedContact.name} at ${selectedContact.phone}: ${smsMessage}`);
+    
+    // On mobile devices, this opens the SMS app
+    const encodedMessage = encodeURIComponent(smsMessage);
+    window.location.href = `sms:${selectedContact.phone.replace(/\s+/g, '')}?body=${encodedMessage}`;
+    
+    setShowSmsModal(false);
   };
 
   const handleRemoveContact = (id: number) => {
@@ -132,6 +180,14 @@ const TrustedContacts = () => {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-safety-500"
+                    onClick={() => handleSendSMS(contact)}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground"
                     onClick={() => handleRemoveContact(contact.id)}
                   >
@@ -153,6 +209,53 @@ const TrustedContacts = () => {
           These contacts will be notified when you activate the SOS feature
         </p>
       </div>
+      
+      {/* SMS Modal */}
+      {showSmsModal && selectedContact && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg mx-4 animate-scale-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-medium text-lg">Send Emergency Alert</h3>
+              <Button variant="ghost" size="icon" onClick={() => setShowSmsModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">To: {selectedContact.name}</p>
+                <p className="text-sm font-medium">{selectedContact.phone}</p>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Emergency Message</label>
+                <textarea
+                  className="w-full border border-input min-h-24 rounded-md p-3 text-sm"
+                  value={smsMessage}
+                  onChange={(e) => setSmsMessage(e.target.value)}
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => setShowSmsModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                className="flex-1 bg-alert-500 hover:bg-alert-600"
+                onClick={sendSMS}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Send Alert
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };

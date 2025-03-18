@@ -1,18 +1,30 @@
 
 import { useState, useEffect } from 'react';
-import { AlertTriangle, Phone, X, Send } from 'lucide-react';
+import { AlertTriangle, Phone, X, Send, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-// Mock emergency contacts - in a real app, these would come from a database
-const mockEmergencyContacts = [
-  { id: 1, name: 'Emma Wilson', relation: 'Sister', phone: '+1 234 567 8901' },
-  { id: 2, name: 'Michael Chen', relation: 'Friend', phone: '+1 234 567 8902' },
-  { id: 3, name: 'Sarah Johnson', relation: 'Mother', phone: '+1 234 567 8903' },
-];
+// Get emergency contacts from localStorage (in a real app, this would come from a database)
+const getEmergencyContacts = () => {
+  try {
+    const savedContacts = localStorage.getItem('trustedContacts');
+    if (savedContacts) {
+      return JSON.parse(savedContacts);
+    }
+  } catch (error) {
+    console.error("Error getting emergency contacts:", error);
+  }
+  
+  // Default emergency contacts if none found in localStorage
+  return [
+    { id: 1, name: 'Emma Wilson', relation: 'Sister', phone: '+1 234 567 8901' },
+    { id: 2, name: 'Michael Chen', relation: 'Friend', phone: '+1 234 567 8902' },
+    { id: 3, name: 'Sarah Johnson', relation: 'Mother', phone: '+1 234 567 8903' },
+  ];
+};
 
 const EmergencySOS = () => {
   const [isActive, setIsActive] = useState(false);
@@ -20,6 +32,7 @@ const EmergencySOS = () => {
   const [showDialog, setShowDialog] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [contactsNotified, setContactsNotified] = useState<string[]>([]);
+  const [nearbyContacts, setNearbyContacts] = useState<any[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -37,7 +50,25 @@ const EmergencySOS = () => {
         }
       );
     }
+    
+    // Simulate nearby emergency contacts (in a real app with a backend, 
+    // this would fetch contacts near the user's location)
+    simulateNearbyContacts();
   }, []);
+  
+  const simulateNearbyContacts = () => {
+    // In a real app, this would be fetched from a backend based on geolocation
+    const mockNearbyContacts = [
+      { name: "City Police Station", distance: "1.2 mi", phone: "911" },
+      { name: "Memorial Hospital", distance: "2.5 mi", phone: "108" },
+      { name: "Fire Department", distance: "3.7 mi", phone: "101" },
+    ];
+    
+    // Simulate a delay in getting nearby contacts
+    setTimeout(() => {
+      setNearbyContacts(mockNearbyContacts);
+    }, 2000);
+  };
 
   const handleActivateSOS = () => {
     setIsActive(true);
@@ -104,11 +135,17 @@ const EmergencySOS = () => {
       ? `https://www.google.com/maps?q=${location.lat},${location.lng}` 
       : "Location not available";
 
+    // Get emergency contacts from localStorage
+    const emergencyContacts = getEmergencyContacts();
+    
     // Simulate sending messages to contacts with a delay to look more realistic
-    mockEmergencyContacts.forEach((contact, index) => {
+    emergencyContacts.forEach((contact: any, index: number) => {
       setTimeout(() => {
         // Simulate a message being sent
         console.log(`SOS message sent to ${contact.name} at ${contact.phone} with location: ${googleMapsUrl}`);
+        
+        // In a real app with a backend, this would make an API call to send an SMS
+        // For demo purposes, we'll open the SMS app if the user clicks on "Text" button
         
         // Update the notified contacts list
         setContactsNotified(prev => [...prev, contact.name]);
@@ -143,6 +180,31 @@ const EmergencySOS = () => {
     setTimeout(() => {
       window.location.href = "tel:911";
     }, 1000);
+  };
+  
+  const simulateSMS = (phone: string) => {
+    // Create SMS message with location
+    const message = currentLocation 
+      ? `EMERGENCY: I need help! My location: https://www.google.com/maps?q=${currentLocation.lat},${currentLocation.lng}` 
+      : "EMERGENCY: I need help!";
+    
+    // Encode the message for SMS
+    const encodedMessage = encodeURIComponent(message);
+    
+    // Open SMS app with pre-filled message
+    window.location.href = `sms:${phone}?body=${encodedMessage}`;
+  };
+
+  const callContact = (phone: string, name: string) => {
+    toast({
+      title: `Calling ${name}`,
+      description: `Connecting to ${phone}...`,
+    });
+    
+    // Start phone call
+    setTimeout(() => {
+      window.location.href = `tel:${phone.replace(/\s+/g, '')}`;
+    }, 500);
   };
 
   return (
@@ -223,6 +285,40 @@ const EmergencySOS = () => {
                           <div key={index} className="flex items-center gap-2 text-sm">
                             <Send className="h-3 w-3 text-safety-500" />
                             <span>{name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {nearbyContacts.length > 0 && (
+                    <div className="bg-muted/50 rounded-lg p-4">
+                      <p className="text-xs text-muted-foreground mb-2">Nearby Emergency Services</p>
+                      <div className="space-y-3">
+                        {nearbyContacts.map((contact, index) => (
+                          <div key={index} className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">{contact.name}</p>
+                              <p className="text-xs text-muted-foreground">{contact.distance} away</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => simulateSMS(contact.phone)}
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-safety-500 border-safety-200"
+                                onClick={() => callContact(contact.phone, contact.name)}
+                              >
+                                <Phone className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>

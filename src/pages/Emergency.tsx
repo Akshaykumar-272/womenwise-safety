@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import EmergencySOS from '@/components/EmergencySOS';
+import TrustedContacts from '@/components/TrustedContacts';
+import SafetyMap from '@/components/SafetyMap';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const Emergency = () => {
@@ -45,7 +47,7 @@ const Emergency = () => {
           <h1 className="text-3xl font-medium">Emergency Assistance</h1>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <div className="bg-white rounded-xl p-6 shadow-soft">
             <h2 className="text-xl font-medium mb-4">SOS Emergency Alert</h2>
             <p className="text-muted-foreground mb-6">
@@ -85,7 +87,19 @@ const Emergency = () => {
                         <p className="text-sm text-muted-foreground">{contact.number}</p>
                       </div>
                     </div>
-                    <Button size="sm" className="bg-safety-500 hover:bg-safety-600">
+                    <Button 
+                      size="sm" 
+                      className="bg-safety-500 hover:bg-safety-600"
+                      onClick={() => {
+                        toast({
+                          title: `Calling ${contact.name}`,
+                          description: `Dialing ${contact.number}...`
+                        });
+                        setTimeout(() => {
+                          window.location.href = `tel:${contact.number}`;
+                        }, 500);
+                      }}
+                    >
                       <PhoneCall className="h-4 w-4 mr-2" />
                       Call
                     </Button>
@@ -95,11 +109,25 @@ const Emergency = () => {
               
               <TabsContent value="personal" className="flex flex-col items-center justify-center py-8">
                 <p className="text-muted-foreground mb-4">Add your personal emergency contacts</p>
-                <Button variant="outline" className="border-safety-500 text-safety-700">
-                  Add Contact
+                <Button 
+                  variant="outline" 
+                  className="border-safety-500 text-safety-700"
+                  onClick={() => navigate('/contacts')}
+                >
+                  Manage Contacts
                 </Button>
               </TabsContent>
             </Tabs>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2">
+            <SafetyMap />
+          </div>
+          
+          <div>
+            <TrustedContacts />
           </div>
         </div>
       </main>
