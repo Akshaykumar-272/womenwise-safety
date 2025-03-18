@@ -56,6 +56,54 @@ const SafeNavigation = () => {
     });
   };
 
+  const getCurrentLocation = () => {
+    if (navigator.geolocation) {
+      toast({
+        title: "Getting Your Location",
+        description: "Please wait while we locate you...",
+      });
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          // Get address from coordinates (reverse geocoding)
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+            .then(response => response.json())
+            .then(data => {
+              const address = data.display_name || `${latitude}, ${longitude}`;
+              setOrigin(address);
+              toast({
+                title: "Location Found",
+                description: "Your current location has been set as the starting point",
+              });
+            })
+            .catch(error => {
+              console.error("Error getting address:", error);
+              setOrigin(`${latitude}, ${longitude}`);
+              toast({
+                title: "Location Set",
+                description: "Your coordinates have been set as the starting point",
+              });
+            });
+        },
+        (error) => {
+          toast({
+            title: "Location Error",
+            description: "Unable to retrieve your location. Please check your permissions.",
+            variant: "destructive"
+          });
+          console.error("Error getting location:", error);
+        }
+      );
+    } else {
+      toast({
+        title: "Location Not Supported",
+        description: "Your browser doesn't support geolocation",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="rounded-xl overflow-hidden bg-white border border-border/30 shadow-soft">
       <div className="p-5">
@@ -73,6 +121,14 @@ const SafeNavigation = () => {
               value={origin}
               onChange={(e) => setOrigin(e.target.value)}
             />
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2"
+              onClick={getCurrentLocation}
+            >
+              <MapPin className="h-3.5 w-3.5 text-safety-500" />
+            </Button>
           </div>
           
           <div className="relative">

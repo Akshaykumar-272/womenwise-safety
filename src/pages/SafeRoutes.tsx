@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Navigation, Map, Shield, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,7 @@ const SafeRoutes = () => {
     });
   };
 
-  const handleFindRoute = () => {
+  const findRoute = () => {
     if (!startLocation || !destination) {
       toast({
         title: "Missing Information",
@@ -180,6 +181,7 @@ const SafeRoutes = () => {
               setDestination={setDestination}
               startLocation={startLocation}
               destination={destination}
+              handleFindRoute={findRoute}
             />
             <SafeNavigation />
           </div>
@@ -194,13 +196,15 @@ const EnhancedRouteForm = ({
   setStartLocation, 
   setDestination,
   startLocation,
-  destination
+  destination,
+  handleFindRoute
 }: { 
   setShowDirections: (show: boolean) => void;
   setStartLocation: (location: string) => void;
   setDestination: (location: string) => void;
   startLocation: string;
   destination: string;
+  handleFindRoute: () => void;
 }) => {
   const { toast } = useToast();
 

@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Shield, Menu, X, Bell, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const { toast } = useToast();
   
   useEffect(() => {
     const handleScroll = () => {
@@ -25,6 +27,56 @@ const Header = () => {
     { name: 'Contacts', path: '/contacts' },
     { name: 'Resources', path: '/resources' },
   ];
+
+  const handleShareLocation = () => {
+    if (navigator.geolocation) {
+      toast({
+        title: "Requesting Location",
+        description: "Please allow access to your location",
+      });
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+          
+          // Prepare a shareable link
+          const googleMapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+          
+          // Copy to clipboard
+          navigator.clipboard.writeText(googleMapsUrl)
+            .then(() => {
+              toast({
+                title: "Location Shared",
+                description: "Google Maps link copied to clipboard",
+              });
+            })
+            .catch(() => {
+              // If clipboard fails, open in new tab
+              window.open(googleMapsUrl, '_blank');
+              toast({
+                title: "Location Shared",
+                description: "Opened location in Google Maps",
+              });
+            });
+        },
+        (error) => {
+          toast({
+            title: "Error Sharing Location",
+            description: "Unable to access your location. Please check your permissions.",
+            variant: "destructive"
+          });
+          console.error("Error getting location:", error);
+        }
+      );
+    } else {
+      toast({
+        title: "Location Sharing Not Supported",
+        description: "Your browser doesn't support location sharing",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
     <header 
@@ -68,7 +120,10 @@ const Header = () => {
           <Button variant="ghost" size="icon" className="text-foreground/70 hover:text-foreground">
             <Bell className="h-5 w-5" />
           </Button>
-          <Button className="bg-safety-500 hover:bg-safety-600 text-white shadow-soft flex items-center gap-1">
+          <Button 
+            className="bg-safety-500 hover:bg-safety-600 text-white shadow-soft flex items-center gap-1"
+            onClick={handleShareLocation}
+          >
             <MapPin className="h-4 w-4" />
             <span>Share Location</span>
           </Button>
@@ -88,7 +143,10 @@ const Header = () => {
                   {item.name}
                 </Link>
               ))}
-              <Button className="bg-safety-500 hover:bg-safety-600 text-white shadow-soft mt-2 flex items-center justify-center gap-1">
+              <Button 
+                className="bg-safety-500 hover:bg-safety-600 text-white shadow-soft mt-2 flex items-center justify-center gap-1"
+                onClick={handleShareLocation}
+              >
                 <MapPin className="h-4 w-4" />
                 <span>Share Location</span>
               </Button>
