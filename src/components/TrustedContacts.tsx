@@ -5,24 +5,50 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Card } from '@/components/ui/card';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-// Initial sample contacts
+// Initial sample contacts - in a real app, these would come from a database
 const initialContacts = [
   { id: 1, name: 'Emma Wilson', relation: 'Sister', phone: '+1 234 567 8901', image: '' },
   { id: 2, name: 'Michael Chen', relation: 'Friend', phone: '+1 234 567 8902', image: '' },
   { id: 3, name: 'Sarah Johnson', relation: 'Mother', phone: '+1 234 567 8903', image: '' },
 ];
 
+interface Contact {
+  id: number;
+  name: string;
+  relation: string;
+  phone: string;
+  image: string;
+}
+
 const TrustedContacts = () => {
-  const [contacts, setContacts] = useState(initialContacts);
+  const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const { toast } = useToast();
 
+  // This would normally fetch contacts from a backend API
+  useEffect(() => {
+    // Simulate loading contacts from storage/backend
+    const savedContacts = localStorage.getItem('trustedContacts');
+    if (savedContacts) {
+      try {
+        setContacts(JSON.parse(savedContacts));
+      } catch (error) {
+        console.error("Error parsing saved contacts:", error);
+      }
+    }
+  }, []);
+
+  // Save contacts to localStorage when they change (simulating a backend)
+  useEffect(() => {
+    localStorage.setItem('trustedContacts', JSON.stringify(contacts));
+  }, [contacts]);
+
   const handleAddContact = () => {
-    // This would normally open a modal, but for simplicity we'll just add a sample contact
+    // In a real app with a backend, this would make an API call
     const newContact = {
-      id: contacts.length + 1,
+      id: Date.now(),
       name: 'New Contact',
       relation: 'Friend',
       phone: '+1 234 567 8904',
@@ -36,10 +62,24 @@ const TrustedContacts = () => {
     });
   };
 
-  const handleCallContact = (contact: typeof contacts[0]) => {
+  const handleCallContact = (contact: Contact) => {
+    // In a real app, this would initiate a call or send a message
     toast({
       title: "Calling Contact",
       description: `Calling ${contact.name} at ${contact.phone}`,
+    });
+    
+    // Simulate a call
+    setTimeout(() => {
+      window.location.href = `tel:${contact.phone.replace(/\s+/g, '')}`;
+    }, 1000);
+  };
+
+  const handleRemoveContact = (id: number) => {
+    setContacts(contacts.filter(contact => contact.id !== id));
+    toast({
+      title: "Contact Removed",
+      description: "Contact has been removed from your trusted contacts",
     });
   };
 
@@ -80,17 +120,27 @@ const TrustedContacts = () => {
                   </div>
                 </div>
                 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-safety-500"
-                  onClick={() => handleCallContact(contact)}
-                >
-                  <Phone className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-safety-500"
+                    onClick={() => handleCallContact(contact)}
+                  >
+                    <Phone className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground"
+                    onClick={() => handleRemoveContact(contact.id)}
+                  >
+                    <UserCircle className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               
-              {contact.id !== contacts.length && (
+              {contact.id !== contacts[contacts.length - 1].id && (
                 <Separator className="my-3" />
               )}
             </div>

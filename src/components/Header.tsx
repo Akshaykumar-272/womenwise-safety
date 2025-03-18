@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const { toast } = useToast();
   
   useEffect(() => {
@@ -18,6 +19,24 @@ const Header = () => {
     
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Get current location when component mounts
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setCurrentLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.error("Error getting initial location:", error);
+        },
+        { enableHighAccuracy: true }
+      );
+    }
   }, []);
 
   const navItems = [
@@ -39,6 +58,7 @@ const Header = () => {
         (position) => {
           const latitude = position.coords.latitude;
           const longitude = position.coords.longitude;
+          setCurrentLocation({ latitude, longitude });
           
           // Prepare a shareable link
           const googleMapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
@@ -67,7 +87,8 @@ const Header = () => {
             variant: "destructive"
           });
           console.error("Error getting location:", error);
-        }
+        },
+        { enableHighAccuracy: true }
       );
     } else {
       toast({
