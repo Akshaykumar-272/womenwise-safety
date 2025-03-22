@@ -23,46 +23,79 @@ const Emergency = () => {
       description: "Access emergency services and quick contact options",
     });
 
-    // Request necessary permissions
+    // Request necessary permissions as soon as the page loads
     requestMediaPermissions();
   }, [toast]);
 
   // Request camera and microphone permissions
   const requestMediaPermissions = async () => {
     try {
-      // Check if permissions are already granted
-      const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
-      
-      if (permissions.state === 'granted') {
-        console.log('Camera permissions already granted');
-        return;
+      // First request location permission
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          () => {
+            console.log("Location permission granted");
+          },
+          (error) => {
+            console.error("Location permission error:", error);
+            toast({
+              title: "Location Access Needed",
+              description: "Please enable location services for emergency features",
+              variant: "destructive"
+            });
+          }
+        );
       }
-
-      // Request permissions if not already granted
-      toast({
-        title: "Permission Required",
-        description: "W-Safe needs camera and microphone access for emergency situations",
-      });
       
-      // This just attempts to get user media, which will trigger the permission prompt
-      await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        .then(stream => {
-          // Immediately stop all tracks to release the camera/mic
-          stream.getTracks().forEach(track => track.stop());
+      // Check and request camera permissions
+      try {
+        const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        
+        if (cameraPermission.state === 'granted') {
+          console.log('Camera permissions already granted');
+        } else {
+          toast({
+            title: "Permission Required",
+            description: "W-Safe needs camera and microphone access for emergency situations",
+          });
           
-          toast({
-            title: "Permissions Granted",
-            description: "W-Safe can now capture media during emergencies",
+          // Request permissions
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+              video: true, 
+              audio: true 
+            });
+            
+            // Immediately stop all tracks to release the camera/mic
+            stream.getTracks().forEach(track => track.stop());
+            
+            console.log("Camera and microphone permissions granted");
+            toast({
+              title: "Permissions Granted",
+              description: "W-Safe can now capture media during emergencies",
+            });
+          } catch (err) {
+            console.error("Permission request error:", err);
+            toast({
+              title: "Permission Denied",
+              description: "Some features may be limited without camera/microphone access",
+              variant: "destructive"
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Permissions API error:", err);
+        // Fall back to direct getUserMedia request if Permissions API is not supported
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: true 
           });
-        })
-        .catch(error => {
-          console.error("Permission error:", error);
-          toast({
-            title: "Permission Denied",
-            description: "Some features may be limited without camera/microphone access",
-            variant: "destructive"
-          });
-        });
+          stream.getTracks().forEach(track => track.stop());
+        } catch (mediaErr) {
+          console.error("Media request error:", mediaErr);
+        }
+      }
     } catch (error) {
       console.error("Error requesting permissions:", error);
     }

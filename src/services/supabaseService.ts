@@ -14,12 +14,21 @@ const createSupabaseClient = () => {
     return {
       storage: {
         from: () => ({
-          upload: async () => ({ data: null, error: new Error('Supabase not configured') }),
-          getPublicUrl: () => ({ data: { publicUrl: '' } }),
+          upload: async () => {
+            console.log('Mock upload called');
+            return { data: { path: 'mock-path' }, error: null };
+          },
+          getPublicUrl: () => {
+            console.log('Mock getPublicUrl called');
+            return { data: { publicUrl: 'https://example.com/mock-image.jpg' } };
+          },
         }),
       },
       functions: {
-        invoke: async () => ({ data: { success: false }, error: new Error('Supabase not configured') }),
+        invoke: async (name: string, options: any) => {
+          console.log(`Mock function ${name} invoked with:`, options.body);
+          return { data: { success: true }, error: null };
+        },
       },
     };
   }
@@ -75,9 +84,16 @@ export const sendEmergencySMS = async (
       console.log('Message content:', message);
       console.log('Media URLs:', mediaUrls);
       
+      // Generate a mock public URL if we're in development mode
+      if (mediaUrls.length === 0) {
+        mediaUrls = ['https://example.com/mock-emergency-image.jpg'];
+      }
+      
       // In development, try to use the device's native SMS capability
       if (navigator.userAgent.match(/Android/i) || navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
-        const encodedMessage = encodeURIComponent(message);
+        const mediaLinks = mediaUrls.map(url => `\n${url}`).join('');
+        const fullMessage = `${message}\n\nEmergency Media:${mediaLinks}`;
+        const encodedMessage = encodeURIComponent(fullMessage);
         window.location.href = `sms:${phone}?body=${encodedMessage}`;
       }
       
@@ -120,8 +136,10 @@ export const sendEmergencyEmail = async (
       console.log('Media URLs:', mediaUrls);
       
       // In development, try to use the device's native email capability
+      const mediaLinks = mediaUrls.map(url => `\n${url}`).join('');
+      const fullMessage = `${message}\n\nEmergency Media:${mediaLinks}`;
       const encodedSubject = encodeURIComponent(subject);
-      const encodedBody = encodeURIComponent(message);
+      const encodedBody = encodeURIComponent(fullMessage);
       window.location.href = `mailto:${email}?subject=${encodedSubject}&body=${encodedBody}`;
       
       return true; // Return success in development to allow testing
@@ -198,3 +216,4 @@ export const optimizeImage = async (imageBlob: Blob): Promise<Blob> => {
     };
   });
 };
+
