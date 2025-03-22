@@ -22,12 +22,59 @@ const Emergency = () => {
       title: "Emergency Page",
       description: "Access emergency services and quick contact options",
     });
+
+    // Request necessary permissions
+    requestMediaPermissions();
   }, [toast]);
+
+  // Request camera and microphone permissions
+  const requestMediaPermissions = async () => {
+    try {
+      // Check if permissions are already granted
+      const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      
+      if (permissions.state === 'granted') {
+        console.log('Camera permissions already granted');
+        return;
+      }
+
+      // Request permissions if not already granted
+      toast({
+        title: "Permission Required",
+        description: "W-Safe needs camera and microphone access for emergency situations",
+      });
+      
+      // This just attempts to get user media, which will trigger the permission prompt
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(stream => {
+          // Immediately stop all tracks to release the camera/mic
+          stream.getTracks().forEach(track => track.stop());
+          
+          toast({
+            title: "Permissions Granted",
+            description: "W-Safe can now capture media during emergencies",
+          });
+        })
+        .catch(error => {
+          console.error("Permission error:", error);
+          toast({
+            title: "Permission Denied",
+            description: "Some features may be limited without camera/microphone access",
+            variant: "destructive"
+          });
+        });
+    } catch (error) {
+      console.error("Error requesting permissions:", error);
+    }
+  };
 
   const emergencyContacts = [
     { name: "Police", number: "100", icon: <Shield className="h-5 w-5" /> },
     { name: "Ambulance", number: "108", icon: <PhoneCall className="h-5 w-5" /> },
     { name: "Women's Helpline", number: "1091", icon: <Shield className="h-5 w-5" /> },
+    { name: "Emergency Contact 1", number: "9391414022", icon: <PhoneCall className="h-5 w-5" /> },
+    { name: "Emergency Contact 2", number: "7842522747", icon: <PhoneCall className="h-5 w-5" /> },
+    { name: "Emergency Contact 3", number: "8019735081", icon: <PhoneCall className="h-5 w-5" /> },
   ];
 
   return (
@@ -51,7 +98,7 @@ const Emergency = () => {
           <div className="bg-white rounded-xl p-6 shadow-soft">
             <h2 className="text-xl font-medium mb-4">SOS Emergency Alert</h2>
             <p className="text-muted-foreground mb-6">
-              Quickly activate emergency mode to alert your trusted contacts and share your location
+              Quickly activate emergency mode to alert your trusted contacts with your location, photos, and videos
             </p>
             
             <div className="flex justify-center mb-6">
@@ -59,7 +106,7 @@ const Emergency = () => {
             </div>
             
             <p className="text-xs text-muted-foreground text-center">
-              Tap the SOS button to immediately notify your emergency contacts with your current location
+              Tap the SOS button to immediately notify your emergency contacts with your current location and situation
             </p>
           </div>
           
