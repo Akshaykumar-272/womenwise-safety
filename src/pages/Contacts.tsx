@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, UserPlus, User, X, Phone, MapPin } from 'lucide-react';
+import { ArrowLeft, UserPlus, User, X, Phone, MapPin, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -9,36 +9,40 @@ import TrustedContacts from '@/components/TrustedContacts';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-interface Contact {
-  id: number;
-  name: string;
-  relation: string;
-  phone: string;
-}
+import { 
+  getEmergencyContacts,
+  addEmergencyContact,
+  removeEmergencyContact,
+  Contact,
+  FIXED_EMERGENCY_CONTACTS
+} from '@/services/contactsService';
 
 const Contacts = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [showAddContact, setShowAddContact] = useState(false);
-  const [contacts, setContacts] = useState<Contact[]>([
-    { id: 1, name: "Jane Smith", relation: "Sister", phone: "+1 234-567-8901" },
-    { id: 2, name: "Mark Johnson", relation: "Friend", phone: "+1 234-567-8902" },
-    { id: 3, name: "Sarah Williams", relation: "Mother", phone: "+1 234-567-8903" },
-  ]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [newContact, setNewContact] = useState({
     name: '',
     phone: '',
-    relation: ''
+    relation: '',
+    email: ''
   });
 
   useEffect(() => {
+    loadContacts();
+    
     toast({
       title: "Trusted Contacts",
       description: "Manage your emergency contacts",
     });
   }, [toast]);
+
+  const loadContacts = () => {
+    const savedContacts = getEmergencyContacts();
+    setContacts(savedContacts);
+  };
 
   const handleAddContact = () => {
     if (!newContact.name || !newContact.phone || !newContact.relation) {
@@ -50,13 +54,28 @@ const Contacts = () => {
       return;
     }
 
-    const newContactWithId = {
-      ...newContact,
-      id: Date.now()
-    };
+    // Validate phone number format
+    const phoneRegex = /^\+?[0-9\s-]{10,15}$/;
+    if (!phoneRegex.test(newContact.phone)) {
+      toast({
+        title: "Invalid Phone",
+        description: "Please enter a valid phone number",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    setContacts([...contacts, newContactWithId]);
-    setNewContact({ name: '', phone: '', relation: '' });
+    // Add the new contact
+    addEmergencyContact({
+      name: newContact.name,
+      phone: newContact.phone,
+      relation: newContact.relation,
+      email: newContact.email
+    });
+
+    // Reload contacts and reset form
+    loadContacts();
+    setNewContact({ name: '', phone: '', relation: '', email: '' });
     setShowAddContact(false);
     
     toast({
@@ -66,7 +85,9 @@ const Contacts = () => {
   };
 
   const handleRemoveContact = (id: number) => {
-    setContacts(contacts.filter(contact => contact.id !== id));
+    removeEmergencyContact(id);
+    loadContacts();
+    
     toast({
       title: "Contact Removed",
       description: "Contact has been removed from your trusted contacts",
@@ -104,33 +125,26 @@ const Contacts = () => {
           <div className="lg:col-span-2 bg-white rounded-xl p-6 shadow-soft">
             <h2 className="text-xl font-medium mb-6">Your Emergency Contacts</h2>
             
-            {contacts.length === 0 ? (
-              <div className="text-center py-8 bg-muted/30 rounded-lg">
-                <User className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
-                <p className="text-muted-foreground">You haven't added any emergency contacts yet</p>
-                <Button 
-                  variant="outline" 
-                  className="mt-4"
-                  onClick={() => setShowAddContact(true)}
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Add Your First Contact
-                </Button>
+            {/* Fixed Emergency Contacts */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Shield className="h-5 w-5 text-alert-500" />
+                <h3 className="font-medium">Default SOS Recipients</h3>
               </div>
-            ) : (
+              
               <div className="space-y-4">
-                {contacts.map(contact => (
+                {FIXED_EMERGENCY_CONTACTS.map(contact => (
                   <div 
                     key={contact.id} 
-                    className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border"
+                    className="flex items-center justify-between p-4 bg-alert-50/50 rounded-lg border border-alert-100"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="bg-safety-100 h-10 w-10 rounded-full flex items-center justify-center text-safety-500">
+                      <div className="bg-alert-100 h-10 w-10 rounded-full flex items-center justify-center text-alert-500">
                         <User className="h-5 w-5" />
                       </div>
                       <div>
                         <p className="font-medium">{contact.name}</p>
-                        <p className="text-sm text-muted-foreground">{contact.relation}</p>
+                        <p className="text-sm text-muted-foreground">{contact.phone}</p>
                       </div>
                     </div>
                     
@@ -138,19 +152,83 @@ const Contacts = () => {
                       <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-safety-500">
                         <Phone className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="rounded-full h-8 w-8"
-                        onClick={() => handleRemoveContact(contact.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
+              
+              <p className="text-xs text-muted-foreground mt-2 italic">
+                These contacts will always receive SOS alerts
+              </p>
+            </div>
+            
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium">Additional Emergency Contacts</h3>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowAddContact(true)}
+                >
+                  <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                  Add Contact
+                </Button>
+              </div>
+              
+              {contacts.length === 0 ? (
+                <div className="text-center py-8 bg-muted/30 rounded-lg">
+                  <User className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+                  <p className="text-muted-foreground">You haven't added any emergency contacts yet</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setShowAddContact(true)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add Your First Contact
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {contacts.map(contact => (
+                    <div 
+                      key={contact.id} 
+                      className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="bg-safety-100 h-10 w-10 rounded-full flex items-center justify-center text-safety-500">
+                          <User className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{contact.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-muted-foreground">{contact.relation}</p>
+                            {contact.email && (
+                              <p className="text-xs text-muted-foreground">({contact.email})</p>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium">{contact.phone}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-safety-500">
+                          <Phone className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="rounded-full h-8 w-8"
+                          onClick={() => handleRemoveContact(contact.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             
             <div className="mt-6 p-4 bg-muted/30 rounded-lg">
               <p className="text-sm text-muted-foreground text-center">
@@ -226,6 +304,7 @@ const Contacts = () => {
                   value={newContact.phone}
                   onChange={(e) => setNewContact({...newContact, phone: e.target.value})}
                 />
+                <p className="text-xs text-muted-foreground">Include country code (e.g. +1 for US)</p>
               </div>
               
               <div className="space-y-2">
@@ -236,6 +315,17 @@ const Contacts = () => {
                   value={newContact.relation}
                   onChange={(e) => setNewContact({...newContact, relation: e.target.value})}
                 />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Email (Optional)</Label>
+                <Input 
+                  type="email" 
+                  placeholder="For backup notifications"
+                  value={newContact.email || ''}
+                  onChange={(e) => setNewContact({...newContact, email: e.target.value})}
+                />
+                <p className="text-xs text-muted-foreground">Used as backup if SMS fails</p>
               </div>
             </div>
             

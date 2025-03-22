@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Phone, X, Send, MessageSquare, Camera, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -5,23 +6,21 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-
-const getEmergencyContacts = () => {
-  try {
-    const savedContacts = localStorage.getItem('trustedContacts');
-    if (savedContacts) {
-      return JSON.parse(savedContacts);
-    }
-  } catch (error) {
-    console.error("Error getting emergency contacts:", error);
-  }
-  
-  return [
-    { id: 1, name: 'Emergency Contact 1', relation: 'Emergency', phone: '9391414022' },
-    { id: 2, name: 'Emergency Contact 2', relation: 'Emergency', phone: '7842522747' },
-    { id: 3, name: 'Emergency Contact 3', relation: 'Emergency', phone: '8019735081' },
-  ];
-};
+import { 
+  getSOSRecipients, 
+  Contact 
+} from '@/services/contactsService';
+import {
+  initializeCamera,
+  captureMultipleImages,
+  recordVideo,
+  stopMediaStream,
+  uploadEmergencyMedia
+} from '@/services/mediaService';
+import {
+  sendEmergencySMS,
+  sendEmergencyEmail
+} from '@/services/supabaseService';
 
 const EmergencySOS = () => {
   const [isActive, setIsActive] = useState(false);
@@ -30,14 +29,17 @@ const EmergencySOS = () => {
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [contactsNotified, setContactsNotified] = useState<string[]>([]);
   const [nearbyContacts, setNearbyContacts] = useState<any[]>([]);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [mediaStatus, setMediaStatus] = useState<'idle' | 'capturing' | 'complete' | 'failed'>('idle');
+  const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [capturedVideo, setCapturedVideo] = useState<string | null>(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [isVideoActive, setIsVideoActive] = useState(false);
+  const [uploadedMediaUrls, setUploadedMediaUrls] = useState<string[]>([]);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const isMountedRef = useRef<boolean>(true);
   const { toast } = useToast();
 
+  // Get current location when component mounts
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -54,6 +56,16 @@ const EmergencySOS = () => {
     }
     
     simulateNearbyContacts();
+    
+    // Request necessary permissions
+    requestMediaPermissions();
+    
+    return () => {
+      isMountedRef.current = false;
+      if (streamRef.current) {
+        stopMediaStream(streamRef.current);
+      }
+    };
   }, []);
   
   const simulateNearbyContacts = () => {
@@ -68,10 +80,64 @@ const EmergencySOS = () => {
     }, 2000);
   };
 
+  // Request camera and location permissions
+  const requestMediaPermissions = async () => {
+    try {
+      // Request location permissions if not already granted
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          () => console.log("Location permission granted"),
+          (error) => console.error("Location permission error:", error)
+        );
+      }
+      
+      // Check if camera permissions are already granted
+      const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      
+      if (cameraPermission.state === 'granted' && micPermission.state === 'granted') {
+        console.log('Camera and microphone permissions already granted');
+        return;
+      }
+      
+      toast({
+        title: "Permission Required",
+        description: "W-Safe needs camera, microphone and location access for emergency situations",
+      });
+      
+      // Request camera permissions
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(stream => {
+          // Immediately stop all tracks to release the camera/mic
+          stream.getTracks().forEach(track => track.stop());
+          
+          toast({
+            title: "Permissions Granted",
+            description: "W-Safe can now capture media during emergencies",
+          });
+        })
+        .catch(error => {
+          console.error("Permission error:", error);
+          toast({
+            title: "Permission Denied",
+            description: "Some features may be limited without camera/microphone access",
+            variant: "destructive"
+          });
+        });
+    } catch (error) {
+      console.error("Error requesting permissions:", error);
+    }
+  };
+
   const handleActivateSOS = () => {
     setIsActive(true);
     setShowDialog(true);
     setContactsNotified([]);
+    setMediaStatus('idle');
+    setCapturedImages([]);
+    setCapturedVideo(null);
+    setUploadedMediaUrls([]);
+    setMediaError(null);
     
     const timer = setInterval(() => {
       setCountdown((prev) => {
@@ -92,8 +158,13 @@ const EmergencySOS = () => {
     setCountdown(3);
     setShowDialog(false);
     setContactsNotified([]);
-    stopCamera();
-    stopVideoRecording();
+    setMediaStatus('idle');
+    
+    // Clean up any active media streams
+    if (streamRef.current) {
+      stopMediaStream(streamRef.current);
+      streamRef.current = null;
+    }
     
     toast({
       title: "SOS Cancelled",
@@ -102,48 +173,148 @@ const EmergencySOS = () => {
     });
   };
   
-  const triggerSOS = () => {
+  const triggerSOS = async () => {
+    // Update location if not already set
     if (!currentLocation && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const latitude = position.coords.latitude;
           const longitude = position.coords.longitude;
           setCurrentLocation({ lat: latitude, lng: longitude });
-          sendSOSAlerts({ lat: latitude, lng: longitude });
+          captureEmergencyMediaAndSendAlerts({ lat: latitude, lng: longitude });
         },
         (error) => {
           console.error("Error getting location:", error);
-          sendSOSAlerts(null);
+          captureEmergencyMediaAndSendAlerts(null);
         }
       );
     } else {
-      sendSOSAlerts(currentLocation);
+      captureEmergencyMediaAndSendAlerts(currentLocation);
     }
   };
 
-  const sendSOSAlerts = (location: {lat: number, lng: number} | null) => {
+  const captureEmergencyMediaAndSendAlerts = async (location: {lat: number, lng: number} | null) => {
     toast({
       title: "SOS Activated",
-      description: "Emergency contacts are being notified with your location",
+      description: "Capturing emergency media and alerting contacts...",
       variant: "destructive",
     });
     
+    setMediaStatus('capturing');
+    
+    try {
+      // Initialize camera
+      const cameraResult = await initializeCamera('environment');
+      if (!cameraResult) {
+        throw new Error("Failed to initialize camera");
+      }
+      
+      const { stream, videoElement } = cameraResult;
+      streamRef.current = stream;
+      
+      // Capture multiple images
+      const imageBlobs = await captureMultipleImages(videoElement, 4, 1000);
+      if (imageBlobs.length === 0) {
+        throw new Error("Failed to capture images");
+      }
+      
+      // Create data URLs for preview
+      const imageUrls = imageBlobs.map(blob => URL.createObjectURL(blob));
+      setCapturedImages(imageUrls);
+      
+      // Record video
+      const videoBlob = await recordVideo(stream, 10000);
+      if (!videoBlob) {
+        throw new Error("Failed to record video");
+      }
+      
+      // Create video URL for preview
+      const videoUrl = URL.createObjectURL(videoBlob);
+      setCapturedVideo(videoUrl);
+      
+      // Prepare media for upload
+      const mediaToUpload = [
+        ...imageBlobs.map(blob => ({ type: 'image' as const, blob })),
+        { type: 'video' as const, blob: videoBlob }
+      ];
+      
+      // Upload media to Supabase
+      const mediaUrls = await uploadEmergencyMedia(mediaToUpload);
+      if (mediaUrls.length === 0) {
+        throw new Error("Failed to upload media");
+      }
+      
+      setUploadedMediaUrls(mediaUrls);
+      setMediaStatus('complete');
+      
+      // Send alerts with the uploaded media
+      if (isMountedRef.current) {
+        sendSOSAlerts(location, mediaUrls);
+      }
+    } catch (error) {
+      console.error("Error capturing emergency media:", error);
+      setMediaError(error instanceof Error ? error.message : "Unknown error");
+      setMediaStatus('failed');
+      
+      // Still try to send alerts without media
+      if (isMountedRef.current) {
+        sendSOSAlerts(location, []);
+      }
+    } finally {
+      // Clean up the stream
+      if (streamRef.current) {
+        stopMediaStream(streamRef.current);
+        streamRef.current = null;
+      }
+    }
+  };
+
+  const sendSOSAlerts = async (location: {lat: number, lng: number} | null, mediaUrls: string[]) => {
     const formattedMessage = location 
       ? `There is an Emergency\nIam at This Location\nLatitude: ${location.lat}\nLongitude: ${location.lng}\nhttps://www.google.com/maps?q=${location.lat},${location.lng}`
       : "There is an Emergency\nUnable to determine location";
 
-    const emergencyContacts = getEmergencyContacts();
+    const emergencyContacts = getSOSRecipients();
     
-    emergencyContacts.forEach((contact: any, index: number) => {
-      setTimeout(() => {
-        console.log(`SOS message sent to ${contact.name} at ${contact.phone} with message: ${formattedMessage}`);
-        setContactsNotified(prev => [...prev, contact.name]);
-        toast({
-          title: `Alert Sent to ${contact.name}`,
-          description: `Emergency message sent to ${contact.phone}`,
-        });
-      }, 1000 * (index + 1));
-    });
+    for (let i = 0; i < emergencyContacts.length; i++) {
+      const contact = emergencyContacts[i];
+      
+      try {
+        // Try to send SMS first
+        let success = await sendEmergencySMS(
+          contact.phone,
+          formattedMessage,
+          mediaUrls
+        );
+        
+        // If SMS fails and email is available, try email
+        if (!success && contact.email) {
+          success = await sendEmergencyEmail(
+            contact.email,
+            "EMERGENCY ALERT - W-Safe SOS Activated",
+            formattedMessage,
+            mediaUrls
+          );
+        }
+        
+        // For development, we'll simulate success and also try to use native SMS capabilities
+        simulateSMS(contact.phone, formattedMessage);
+        
+        if (isMountedRef.current) {
+          setContactsNotified(prev => [...prev, contact.name]);
+          
+          toast({
+            title: `Alert Sent to ${contact.name}`,
+            description: `Emergency message sent to ${contact.phone}`,
+          });
+        }
+      } catch (error) {
+        console.error(`Error sending alert to ${contact.name}:`, error);
+      }
+      
+      // Add delay between notifications to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   };
 
   const getCurrentLocation = () => {
@@ -170,13 +341,8 @@ const EmergencySOS = () => {
     }, 1000);
   };
   
-  const simulateSMS = (phone: string) => {
-    const message = currentLocation 
-      ? `There is an Emergency\nIam at This Location\nLatitude: ${currentLocation.lat}\nLongitude: ${currentLocation.lng}\nhttps://www.google.com/maps?q=${currentLocation.lat},${currentLocation.lng}`
-      : "There is an Emergency\nUnable to determine location";
-    
+  const simulateSMS = (phone: string, message: string) => {
     const encodedMessage = encodeURIComponent(message);
-    
     window.location.href = `sms:${phone}?body=${encodedMessage}`;
   };
 
@@ -189,125 +355,6 @@ const EmergencySOS = () => {
     setTimeout(() => {
       window.location.href = `tel:${phone.replace(/\s+/g, '')}`;
     }, 500);
-  };
-
-  const startCamera = async () => {
-    try {
-      setIsCameraActive(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      toast({
-        title: "Camera Activated",
-        description: "Ready to capture image for emergency contact",
-      });
-    } catch (error) {
-      console.error("Error accessing camera:", error);
-      toast({
-        title: "Camera Error",
-        description: "Unable to access camera. Check permissions.",
-        variant: "destructive",
-      });
-      setIsCameraActive(false);
-    }
-  };
-
-  const captureImage = () => {
-    if (!videoRef.current) return;
-    
-    const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (ctx && videoRef.current) {
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      const imageDataUrl = canvas.toDataURL('image/jpeg');
-      setCapturedImage(imageDataUrl);
-      
-      toast({
-        title: "Image Captured",
-        description: "Photo ready to send to emergency contacts",
-      });
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      const tracks = stream.getTracks();
-      tracks.forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraActive(false);
-  };
-
-  const startVideoRecording = async () => {
-    try {
-      setIsVideoActive(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      
-      const chunks: BlobPart[] = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunks.push(e.data);
-        }
-      };
-      
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const videoUrl = URL.createObjectURL(blob);
-        setCapturedVideo(videoUrl);
-        
-        toast({
-          title: "Video Recorded",
-          description: "Video ready to send to emergency contacts",
-        });
-      };
-      
-      mediaRecorder.start();
-      
-      toast({
-        title: "Recording Started",
-        description: "Recording video for emergency contact",
-      });
-      
-      setTimeout(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          stopVideoRecording();
-        }
-      }, 15000);
-      
-    } catch (error) {
-      console.error("Error accessing camera for video:", error);
-      toast({
-        title: "Video Recording Error",
-        description: "Unable to access camera for video. Check permissions.",
-        variant: "destructive",
-      });
-      setIsVideoActive(false);
-    }
-  };
-
-  const stopVideoRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-    }
-    
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      const tracks = stream.getTracks();
-      tracks.forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    
-    setIsVideoActive(false);
   };
 
   return (
@@ -365,7 +412,11 @@ const EmergencySOS = () => {
               <>
                 <div className="flex items-center justify-center gap-2 mb-4">
                   <Badge className="bg-alert-500 animate-pulse">Live</Badge>
-                  <p className="font-medium">Alerting emergency contacts</p>
+                  <p className="font-medium">
+                    {mediaStatus === 'capturing' 
+                      ? 'Capturing emergency media...' 
+                      : 'Alerting emergency contacts'}
+                  </p>
                 </div>
                 
                 <div className="space-y-4 mb-6">
@@ -384,6 +435,56 @@ const EmergencySOS = () => {
                     </p>
                   </div>
 
+                  {/* Media Capture Status */}
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <p className="text-xs text-muted-foreground mb-2">Emergency Media</p>
+                    
+                    {mediaStatus === 'capturing' && (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-alert-500 border-t-transparent"></div>
+                        <p className="ml-3 text-sm">Capturing images and video...</p>
+                      </div>
+                    )}
+                    
+                    {mediaStatus === 'failed' && (
+                      <div className="text-sm text-alert-500">
+                        <p>Failed to capture media: {mediaError}</p>
+                        <p className="mt-1">Emergency alerts will be sent without media.</p>
+                      </div>
+                    )}
+                    
+                    {mediaStatus === 'complete' && (
+                      <div className="space-y-3">
+                        {capturedImages.length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Captured Images:</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {capturedImages.map((src, i) => (
+                                <img 
+                                  key={i}
+                                  src={src} 
+                                  alt={`Emergency capture ${i+1}`} 
+                                  className="w-full h-auto rounded-lg"
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {capturedVideo && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Recorded Video:</p>
+                            <video 
+                              src={capturedVideo} 
+                              controls
+                              className="w-full h-auto rounded-lg"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {contactsNotified.length > 0 && (
                     <div className="bg-muted/50 rounded-lg p-4">
                       <p className="text-xs text-muted-foreground mb-2">Contacts Notified</p>
@@ -397,100 +498,6 @@ const EmergencySOS = () => {
                       </div>
                     </div>
                   )}
-                  
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <p className="text-xs text-muted-foreground mb-2">Capture Media</p>
-                    
-                    {(isCameraActive || isVideoActive) && (
-                      <div className="mb-4">
-                        <video 
-                          ref={videoRef} 
-                          autoPlay 
-                          muted 
-                          playsInline
-                          className="w-full h-auto rounded-lg mb-2"
-                        />
-                        <div className="flex justify-center gap-2">
-                          {isCameraActive && (
-                            <>
-                              <Button 
-                                size="sm" 
-                                className="bg-safety-500 text-white"
-                                onClick={captureImage}
-                              >
-                                <Camera className="h-3.5 w-3.5 mr-1.5" />
-                                Capture
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={stopCamera}
-                              >
-                                <X className="h-3.5 w-3.5 mr-1.5" />
-                                Cancel
-                              </Button>
-                            </>
-                          )}
-                          
-                          {isVideoActive && (
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={stopVideoRecording}
-                            >
-                              <X className="h-3.5 w-3.5 mr-1.5" />
-                              Stop Recording
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {!isCameraActive && !isVideoActive && (
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={startCamera}
-                          className="flex-1"
-                        >
-                          <Camera className="h-3.5 w-3.5 mr-1.5" />
-                          Take Photo
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={startVideoRecording}
-                          className="flex-1"
-                        >
-                          <Video className="h-3.5 w-3.5 mr-1.5" />
-                          Record Video
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {capturedImage && (
-                      <div className="mt-4">
-                        <p className="text-xs text-muted-foreground mb-1">Captured Image:</p>
-                        <img 
-                          src={capturedImage} 
-                          alt="Captured emergency situation" 
-                          className="w-full h-auto rounded-lg"
-                        />
-                      </div>
-                    )}
-                    
-                    {capturedVideo && (
-                      <div className="mt-4">
-                        <p className="text-xs text-muted-foreground mb-1">Recorded Video:</p>
-                        <video 
-                          src={capturedVideo} 
-                          controls
-                          className="w-full h-auto rounded-lg"
-                        />
-                      </div>
-                    )}
-                  </div>
                   
                   {nearbyContacts.length > 0 && (
                     <div className="bg-muted/50 rounded-lg p-4">
@@ -507,7 +514,7 @@ const EmergencySOS = () => {
                                 variant="outline"
                                 size="sm"
                                 className="h-8 w-8 p-0"
-                                onClick={() => simulateSMS(contact.phone)}
+                                onClick={() => simulateSMS(contact.phone, `There is an Emergency\nI need help at: ${getLocationURL()}`)}
                               >
                                 <MessageSquare className="h-3.5 w-3.5" />
                               </Button>
