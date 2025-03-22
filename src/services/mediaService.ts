@@ -1,6 +1,5 @@
-
 // Service for handling emergency media capture
-import { optimizeImage, uploadMedia } from './supabaseService';
+import { optimizeImage, uploadMedia, uploadToGoogleDrive } from './supabaseService';
 
 // Capture a single image from camera
 export const captureImage = async (
@@ -214,11 +213,11 @@ export const recordVideo = async (
   });
 };
 
-// Upload multiple media files to Supabase
+// Upload multiple media files to cloud storage
 export const uploadEmergencyMedia = async (
   media: { type: 'image' | 'video'; blob: Blob }[]
 ): Promise<string[]> => {
-  console.log(`Uploading ${media.length} media files to Supabase`);
+  console.log(`Uploading ${media.length} media files to cloud storage`);
   
   const uploadPromises = media.map(async (item, index) => {
     try {
@@ -233,7 +232,16 @@ export const uploadEmergencyMedia = async (
       
       console.log(`Uploading ${item.type} (${file.size} bytes) as ${fileName}`);
       
-      // Upload to Supabase
+      // Try Google Drive upload first (using mock implementation for now)
+      const googleDriveResult = await uploadToGoogleDrive(file, fileName);
+      
+      if (googleDriveResult.success && googleDriveResult.fileUrl) {
+        console.log(`Google Drive upload successful: ${googleDriveResult.fileUrl}`);
+        return googleDriveResult.fileUrl;
+      }
+      
+      // Fall back to Supabase upload if Google Drive fails
+      console.log(`Falling back to Supabase storage for ${fileName}`);
       const url = await uploadMedia(file, 'emergency-media', fileName);
       console.log(`Upload complete for ${fileName}: ${url || 'upload failed'}`);
       return url;

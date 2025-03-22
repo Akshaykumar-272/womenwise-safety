@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Phone, X, Send, MessageSquare, Camera, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { 
   getSOSRecipients, 
   Contact 
@@ -15,7 +15,8 @@ import {
   captureMultipleImages,
   recordVideo,
   stopMediaStream,
-  uploadEmergencyMedia
+  uploadEmergencyMedia,
+  takeFallbackSnapshot
 } from '@/services/mediaService';
 import {
   sendEmergencySMS,
@@ -39,7 +40,6 @@ const EmergencySOS = () => {
   const isMountedRef = useRef<boolean>(true);
   const { toast } = useToast();
 
-  // Get current location when component mounts
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -57,7 +57,6 @@ const EmergencySOS = () => {
     
     simulateNearbyContacts();
     
-    // Request necessary permissions
     requestMediaPermissions();
     
     return () => {
@@ -80,10 +79,8 @@ const EmergencySOS = () => {
     }, 2000);
   };
 
-  // Request camera and location permissions
   const requestMediaPermissions = async () => {
     try {
-      // Request location permissions if not already granted
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           () => console.log("Location permission granted"),
@@ -91,7 +88,6 @@ const EmergencySOS = () => {
         );
       }
       
-      // Check if camera permissions are already granted
       const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
       const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
       
@@ -105,10 +101,8 @@ const EmergencySOS = () => {
         description: "W-Safe needs camera, microphone and location access for emergency situations",
       });
       
-      // Request camera permissions
       await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(stream => {
-          // Immediately stop all tracks to release the camera/mic
           stream.getTracks().forEach(track => track.stop());
           
           toast({
@@ -160,7 +154,6 @@ const EmergencySOS = () => {
     setContactsNotified([]);
     setMediaStatus('idle');
     
-    // Clean up any active media streams
     if (streamRef.current) {
       stopMediaStream(streamRef.current);
       streamRef.current = null;
@@ -174,7 +167,6 @@ const EmergencySOS = () => {
   };
   
   const triggerSOS = async () => {
-    // Update location if not already set
     if (!currentLocation && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -186,7 +178,8 @@ const EmergencySOS = () => {
         (error) => {
           console.error("Error getting location:", error);
           captureEmergencyMediaAndSendAlerts(null);
-        }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
       captureEmergencyMediaAndSendAlerts(currentLocation);
@@ -203,42 +196,55 @@ const EmergencySOS = () => {
     setMediaStatus('capturing');
     
     try {
-      // Initialize camera
       const cameraResult = await initializeCamera('environment');
+      
       if (!cameraResult) {
-        throw new Error("Failed to initialize camera");
+        const fallbackImage = await takeFallbackSnapshot();
+        if (fallbackImage) {
+          const imageUrl = URL.createObjectURL(fallbackImage);
+          setCapturedImages([imageUrl]);
+          
+          const mediaUrls = await uploadEmergencyMedia([
+            { type: 'image', blob: fallbackImage }
+          ]);
+          
+          setUploadedMediaUrls(mediaUrls);
+          setMediaStatus('complete');
+          
+          if (isMountedRef.current) {
+            sendSOSAlerts(location, mediaUrls);
+          }
+          return;
+        } else {
+          throw new Error("Failed to initialize camera and create fallback");
+        }
       }
       
       const { stream, videoElement } = cameraResult;
       streamRef.current = stream;
       
-      // Capture multiple images
       const imageBlobs = await captureMultipleImages(videoElement, 4, 1000);
       if (imageBlobs.length === 0) {
         throw new Error("Failed to capture images");
       }
       
-      // Create data URLs for preview
       const imageUrls = imageBlobs.map(blob => URL.createObjectURL(blob));
       setCapturedImages(imageUrls);
       
-      // Record video
       const videoBlob = await recordVideo(stream, 10000);
-      if (!videoBlob) {
-        throw new Error("Failed to record video");
+      let videoMediaItems = [];
+      
+      if (videoBlob) {
+        const videoUrl = URL.createObjectURL(videoBlob);
+        setCapturedVideo(videoUrl);
+        videoMediaItems = [{ type: 'video' as const, blob: videoBlob }];
       }
       
-      // Create video URL for preview
-      const videoUrl = URL.createObjectURL(videoBlob);
-      setCapturedVideo(videoUrl);
-      
-      // Prepare media for upload
       const mediaToUpload = [
         ...imageBlobs.map(blob => ({ type: 'image' as const, blob })),
-        { type: 'video' as const, blob: videoBlob }
+        ...videoMediaItems
       ];
       
-      // Upload media to Supabase
       const mediaUrls = await uploadEmergencyMedia(mediaToUpload);
       if (mediaUrls.length === 0) {
         throw new Error("Failed to upload media");
@@ -247,7 +253,6 @@ const EmergencySOS = () => {
       setUploadedMediaUrls(mediaUrls);
       setMediaStatus('complete');
       
-      // Send alerts with the uploaded media
       if (isMountedRef.current) {
         sendSOSAlerts(location, mediaUrls);
       }
@@ -256,12 +261,10 @@ const EmergencySOS = () => {
       setMediaError(error instanceof Error ? error.message : "Unknown error");
       setMediaStatus('failed');
       
-      // Still try to send alerts without media
       if (isMountedRef.current) {
         sendSOSAlerts(location, []);
       }
     } finally {
-      // Clean up the stream
       if (streamRef.current) {
         stopMediaStream(streamRef.current);
         streamRef.current = null;
@@ -271,7 +274,7 @@ const EmergencySOS = () => {
 
   const sendSOSAlerts = async (location: {lat: number, lng: number} | null, mediaUrls: string[]) => {
     const formattedMessage = location 
-      ? `There is an Emergency\nIam at This Location\nLatitude: ${location.lat}\nLongitude: ${location.lng}\nhttps://www.google.com/maps?q=${location.lat},${location.lng}`
+      ? `There is an Emergency\nI am at This Location\nLatitude: ${location.lat.toFixed(6)}\nLongitude: ${location.lng.toFixed(6)}\nhttps://www.google.com/maps?q=${location.lat},${location.lng}`
       : "There is an Emergency\nUnable to determine location";
 
     const emergencyContacts = getSOSRecipients();
@@ -280,25 +283,20 @@ const EmergencySOS = () => {
       const contact = emergencyContacts[i];
       
       try {
-        // Try to send SMS first
         let success = await sendEmergencySMS(
           contact.phone,
           formattedMessage,
           mediaUrls
         );
         
-        // If SMS fails and email is available, try email
         if (!success && contact.email) {
           success = await sendEmergencyEmail(
             contact.email,
-            "EMERGENCY ALERT - W-Safe SOS Activated",
+            "🚨 EMERGENCY ALERT - W-Safe SOS Activated 🚨",
             formattedMessage,
             mediaUrls
           );
         }
-        
-        // For development, we'll simulate success and also try to use native SMS capabilities
-        simulateSMS(contact.phone, formattedMessage);
         
         if (isMountedRef.current) {
           setContactsNotified(prev => [...prev, contact.name]);
@@ -312,7 +310,6 @@ const EmergencySOS = () => {
         console.error(`Error sending alert to ${contact.name}:`, error);
       }
       
-      // Add delay between notifications to prevent rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   };
@@ -435,7 +432,6 @@ const EmergencySOS = () => {
                     </p>
                   </div>
 
-                  {/* Media Capture Status */}
                   <div className="bg-muted/50 rounded-lg p-4">
                     <p className="text-xs text-muted-foreground mb-2">Emergency Media</p>
                     
