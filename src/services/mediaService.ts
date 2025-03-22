@@ -46,19 +46,35 @@ export const initializeCamera = async (
       console.log('Permission API not supported, proceeding anyway');
     }
     
-    // Mobile-friendly constraints
-    const constraints = {
-      video: {
-        facingMode,
-        width: { ideal: 640 }, // Lower resolution for mobile
-        height: { ideal: 480 },
-      },
-      audio: true, // Enable audio for video recording
-    };
+    // Mobile-friendly constraints with more fallback options
+    let stream: MediaStream | null = null;
     
-    console.log('Requesting media with constraints:', constraints);
+    // Try with ideal resolution first
+    try {
+      console.log('Requesting media with environment facing mode...');
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode,
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: true,
+      });
+    } catch (err) {
+      console.warn('Failed with ideal resolution, trying with basic constraints:', err);
+      
+      // Try with minimal constraints if the ideal ones fail
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+      } catch (basicErr) {
+        console.error('Failed with basic constraints too:', basicErr);
+        throw new Error('Could not access camera with any constraints');
+      }
+    }
     
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     console.log('Media stream obtained successfully');
     
     // Create a video element to display the stream
@@ -69,8 +85,13 @@ export const initializeCamera = async (
     videoElement.muted = true;
     
     // Wait for the video to be ready
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Video element load timeout'));
+      }, 10000); // 10 second timeout
+      
       videoElement.onloadedmetadata = () => {
+        clearTimeout(timeoutId);
         videoElement.play()
           .then(() => {
             console.log('Video playback started');
@@ -78,8 +99,15 @@ export const initializeCamera = async (
           })
           .catch(err => {
             console.error('Error starting video playback:', err);
-            resolve(); // Still resolve to continue the process
+            // Still resolve to continue the process
+            resolve();
           });
+      };
+      
+      videoElement.onerror = (event) => {
+        clearTimeout(timeoutId);
+        console.error('Video element error:', event);
+        reject(new Error('Video element error'));
       };
     });
     
@@ -133,19 +161,19 @@ export const recordVideo = async (
       let mimeType = 'video/webm';
       
       // Check if the browser supports various MIME types
-      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-        mimeType = 'video/webm;codecs=vp9';
+      if (MediaRecorder.isTypeSupported('video/mp4')) {
+        mimeType = 'video/mp4';
       } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
         mimeType = 'video/webm;codecs=vp8';
-      } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-        mimeType = 'video/mp4';
+      } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        mimeType = 'video/webm';
       }
       
       console.log(`Using MIME type: ${mimeType}`);
       
       const mediaRecorder = new MediaRecorder(stream, { 
         mimeType,
-        videoBitsPerSecond: 1000000 // Lower bitrate for mobile
+        videoBitsPerSecond: 500000 // Lower bitrate for mobile
       });
       
       const chunks: BlobPart[] = [];
@@ -222,6 +250,52 @@ export const uploadEmergencyMedia = async (
   return validUrls;
 };
 
+// Take a fallback snapshot if the camera initialization fails
+export const takeFallbackSnapshot = async (): Promise<Blob | null> => {
+  try {
+    // Create a canvas with emergency text
+    const canvas = document.createElement('canvas');
+    canvas.width = 400;
+    canvas.height = 200;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Could not get canvas context');
+    }
+    
+    // Fill with a red background
+    ctx.fillStyle = '#ffeeee';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Add emergency text
+    ctx.fillStyle = '#cc0000';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('EMERGENCY ALERT', canvas.width / 2, 50);
+    
+    ctx.fillStyle = '#000000';
+    ctx.font = '16px Arial';
+    ctx.fillText('Camera access failed', canvas.width / 2, 90);
+    
+    const now = new Date();
+    ctx.fillText(`Emergency triggered at ${now.toLocaleTimeString()}`, canvas.width / 2, 130);
+    ctx.fillText(`${now.toLocaleDateString()}`, canvas.width / 2, 160);
+    
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        (blob) => {
+          resolve(blob);
+        },
+        'image/jpeg',
+        0.95
+      );
+    });
+  } catch (error) {
+    console.error('Error creating fallback snapshot:', error);
+    return null;
+  }
+};
+
 // Stop all tracks in a media stream
 export const stopMediaStream = (stream: MediaStream | null): void => {
   if (!stream) return;
@@ -232,4 +306,3 @@ export const stopMediaStream = (stream: MediaStream | null): void => {
     console.log(`Track ${track.kind} stopped`);
   });
 };
-

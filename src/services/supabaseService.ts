@@ -13,14 +13,25 @@ const createSupabaseClient = () => {
     // Return a mock implementation that doesn't throw errors
     return {
       storage: {
-        from: () => ({
-          upload: async () => {
-            console.log('Mock upload called');
-            return { data: { path: 'mock-path' }, error: null };
+        from: (bucket: string) => ({
+          upload: async (path: string, file: File | Blob) => {
+            console.log(`Mock upload called for bucket: ${bucket}, path: ${path}, file size: ${file.size} bytes`);
+            // Generate a random mock ID for the path
+            const mockId = Math.random().toString(36).substring(2, 15);
+            return { 
+              data: { path: `${path}-${mockId}` }, 
+              error: null 
+            };
           },
-          getPublicUrl: () => {
-            console.log('Mock getPublicUrl called');
-            return { data: { publicUrl: 'https://example.com/mock-image.jpg' } };
+          getPublicUrl: (path: string) => {
+            console.log(`Mock getPublicUrl called for path: ${path}`);
+            // Generate a more realistic mock URL with the actual path
+            const timestamp = new Date().getTime();
+            return { 
+              data: { 
+                publicUrl: `https://wsafe-mockapi.vercel.app/emergency-media/${path}?t=${timestamp}` 
+              } 
+            };
           },
         }),
       },
@@ -84,17 +95,26 @@ export const sendEmergencySMS = async (
       console.log('Message content:', message);
       console.log('Media URLs:', mediaUrls);
       
-      // Generate a mock public URL if we're in development mode
+      // Generate mock media URLs if we're in development mode and none provided
       if (mediaUrls.length === 0) {
-        mediaUrls = ['https://example.com/mock-emergency-image.jpg'];
+        const timestamp = new Date().getTime();
+        mediaUrls = [
+          `https://wsafe-mockapi.vercel.app/emergency-media/mock-image-1.jpg?t=${timestamp}`,
+          `https://wsafe-mockapi.vercel.app/emergency-media/mock-image-2.jpg?t=${timestamp}`,
+        ];
       }
       
       // In development, try to use the device's native SMS capability
       if (navigator.userAgent.match(/Android/i) || navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+        const mediaLinksText = mediaUrls.length > 0 ? "\n\nEmergency Media:" : "";
         const mediaLinks = mediaUrls.map(url => `\n${url}`).join('');
-        const fullMessage = `${message}\n\nEmergency Media:${mediaLinks}`;
+        const fullMessage = `${message}${mediaLinksText}${mediaLinks}`;
         const encodedMessage = encodeURIComponent(fullMessage);
-        window.location.href = `sms:${phone}?body=${encodedMessage}`;
+        
+        // Use a timeout to allow the interface to update before redirecting
+        setTimeout(() => {
+          window.location.href = `sms:${phone}?body=${encodedMessage}`;
+        }, 500);
       }
       
       return true; // Return success in development to allow testing
@@ -135,12 +155,26 @@ export const sendEmergencyEmail = async (
       console.log('Message content:', message);
       console.log('Media URLs:', mediaUrls);
       
+      // Generate mock media URLs if we're in development mode and none provided
+      if (mediaUrls.length === 0) {
+        const timestamp = new Date().getTime();
+        mediaUrls = [
+          `https://wsafe-mockapi.vercel.app/emergency-media/mock-image-1.jpg?t=${timestamp}`,
+          `https://wsafe-mockapi.vercel.app/emergency-media/mock-image-2.jpg?t=${timestamp}`,
+        ];
+      }
+      
       // In development, try to use the device's native email capability
+      const mediaLinksText = mediaUrls.length > 0 ? "\n\nEmergency Media:" : "";
       const mediaLinks = mediaUrls.map(url => `\n${url}`).join('');
-      const fullMessage = `${message}\n\nEmergency Media:${mediaLinks}`;
+      const fullMessage = `${message}${mediaLinksText}${mediaLinks}`;
       const encodedSubject = encodeURIComponent(subject);
       const encodedBody = encodeURIComponent(fullMessage);
-      window.location.href = `mailto:${email}?subject=${encodedSubject}&body=${encodedBody}`;
+      
+      // Use a timeout to allow the interface to update before redirecting
+      setTimeout(() => {
+        window.location.href = `mailto:${email}?subject=${encodedSubject}&body=${encodedBody}`;
+      }, 500);
       
       return true; // Return success in development to allow testing
     }
@@ -216,4 +250,3 @@ export const optimizeImage = async (imageBlob: Blob): Promise<Blob> => {
     };
   });
 };
-

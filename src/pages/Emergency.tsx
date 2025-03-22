@@ -49,55 +49,67 @@ const Emergency = () => {
       
       // Check and request camera permissions
       try {
-        const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-        
-        if (cameraPermission.state === 'granted') {
-          console.log('Camera permissions already granted');
-        } else {
-          toast({
-            title: "Permission Required",
-            description: "W-Safe needs camera and microphone access for emergency situations",
-          });
+        // Try with Permissions API first
+        try {
+          const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
           
-          // Request permissions
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-              video: true, 
-              audio: true 
+          if (cameraPermission.state === 'granted') {
+            console.log('Camera permissions already granted');
+          } else {
+            // Show toast for permission request
+            toast({
+              title: "Permission Required",
+              description: "W-Safe needs camera and microphone access for emergency situations",
             });
             
-            // Immediately stop all tracks to release the camera/mic
-            stream.getTracks().forEach(track => track.stop());
-            
-            console.log("Camera and microphone permissions granted");
-            toast({
-              title: "Permissions Granted",
-              description: "W-Safe can now capture media during emergencies",
-            });
-          } catch (err) {
-            console.error("Permission request error:", err);
-            toast({
-              title: "Permission Denied",
-              description: "Some features may be limited without camera/microphone access",
-              variant: "destructive"
-            });
+            // Request permissions explicitly
+            await requestCameraAndMicrophone();
           }
+        } catch (err) {
+          console.log('Permissions API not supported, trying direct media request');
+          // Fall back to direct getUserMedia request
+          await requestCameraAndMicrophone();
         }
       } catch (err) {
-        console.error("Permissions API error:", err);
-        // Fall back to direct getUserMedia request if Permissions API is not supported
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: true, 
-            audio: true 
-          });
-          stream.getTracks().forEach(track => track.stop());
-        } catch (mediaErr) {
-          console.error("Media request error:", mediaErr);
-        }
+        console.error("Camera permission error:", err);
+        toast({
+          title: "Media Permission Issue",
+          description: "Please enable camera/microphone access in your browser settings for emergency features",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error("Error requesting permissions:", error);
+    }
+  };
+  
+  // Helper function to request camera and microphone
+  const requestCameraAndMicrophone = async () => {
+    try {
+      // Start with video only for basic camera access
+      const videoStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true
+      });
+      
+      // Stop video tracks after permission is granted
+      videoStream.getVideoTracks().forEach(track => track.stop());
+      
+      // Now request audio permission
+      const audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
+      
+      // Stop audio tracks
+      audioStream.getAudioTracks().forEach(track => track.stop());
+      
+      console.log("Camera and microphone permissions granted");
+      toast({
+        title: "Permissions Granted",
+        description: "W-Safe can now capture media during emergencies",
+      });
+    } catch (err) {
+      console.error("Permission request error:", err);
+      throw err; // Rethrow for the caller to handle
     }
   };
 
