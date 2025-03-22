@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Phone, X, Send, MessageSquare, Camera, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-// Get emergency contacts from localStorage (in a real app, this would come from a database)
 const getEmergencyContacts = () => {
   try {
     const savedContacts = localStorage.getItem('trustedContacts');
@@ -18,7 +16,6 @@ const getEmergencyContacts = () => {
     console.error("Error getting emergency contacts:", error);
   }
   
-  // Default emergency contacts with the provided phone numbers
   return [
     { id: 1, name: 'Emergency Contact 1', relation: 'Emergency', phone: '9391414022' },
     { id: 2, name: 'Emergency Contact 2', relation: 'Emergency', phone: '7842522747' },
@@ -42,7 +39,6 @@ const EmergencySOS = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Get user's location when component mounts
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -57,19 +53,16 @@ const EmergencySOS = () => {
       );
     }
     
-    // Simulate nearby emergency contacts
     simulateNearbyContacts();
   }, []);
   
   const simulateNearbyContacts = () => {
-    // In a real app, this would be fetched from a backend based on geolocation
     const mockNearbyContacts = [
       { name: "City Police Station", distance: "1.2 mi", phone: "911" },
       { name: "Memorial Hospital", distance: "2.5 mi", phone: "108" },
       { name: "Fire Department", distance: "3.7 mi", phone: "101" },
     ];
     
-    // Simulate a delay in getting nearby contacts
     setTimeout(() => {
       setNearbyContacts(mockNearbyContacts);
     }, 2000);
@@ -100,7 +93,7 @@ const EmergencySOS = () => {
     setShowDialog(false);
     setContactsNotified([]);
     stopCamera();
-    stopVideo();
+    stopVideoRecording();
     
     toast({
       title: "SOS Cancelled",
@@ -110,7 +103,6 @@ const EmergencySOS = () => {
   };
   
   const triggerSOS = () => {
-    // Get current location if we don't have it yet
     if (!currentLocation && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -130,38 +122,27 @@ const EmergencySOS = () => {
   };
 
   const sendSOSAlerts = (location: {lat: number, lng: number} | null) => {
-    // Simulate sending messages to emergency contacts
     toast({
       title: "SOS Activated",
       description: "Emergency contacts are being notified with your location",
       variant: "destructive",
     });
     
-    // Format the emergency message in the specified format
     const formattedMessage = location 
       ? `There is an Emergency\nIam at This Location\nLatitude: ${location.lat}\nLongitude: ${location.lng}\nhttps://www.google.com/maps?q=${location.lat},${location.lng}`
       : "There is an Emergency\nUnable to determine location";
 
-    // Get emergency contacts with the provided phone numbers
     const emergencyContacts = getEmergencyContacts();
     
-    // Simulate sending messages to contacts with a delay to look more realistic
     emergencyContacts.forEach((contact: any, index: number) => {
       setTimeout(() => {
-        // Simulate a message being sent
         console.log(`SOS message sent to ${contact.name} at ${contact.phone} with message: ${formattedMessage}`);
-        
-        // In a real app with a backend, this would make an API call to send an SMS
-        // For demo purposes, we'll open the SMS app if the user clicks on "Text" button
-        
-        // Update the notified contacts list
         setContactsNotified(prev => [...prev, contact.name]);
-        
         toast({
           title: `Alert Sent to ${contact.name}`,
           description: `Emergency message sent to ${contact.phone}`,
         });
-      }, 1000 * (index + 1)); // Stagger the notifications for realism
+      }, 1000 * (index + 1));
     });
   };
 
@@ -184,22 +165,18 @@ const EmergencySOS = () => {
       description: "Connecting to emergency services...",
     });
 
-    // Simulate a call connecting after a short delay
     setTimeout(() => {
       window.location.href = "tel:911";
     }, 1000);
   };
   
   const simulateSMS = (phone: string) => {
-    // Create SMS message with location in the specified format
     const message = currentLocation 
       ? `There is an Emergency\nIam at This Location\nLatitude: ${currentLocation.lat}\nLongitude: ${currentLocation.lng}\nhttps://www.google.com/maps?q=${currentLocation.lat},${currentLocation.lng}`
       : "There is an Emergency\nUnable to determine location";
     
-    // Encode the message for SMS
     const encodedMessage = encodeURIComponent(message);
     
-    // Open SMS app with pre-filled message
     window.location.href = `sms:${phone}?body=${encodedMessage}`;
   };
 
@@ -209,13 +186,11 @@ const EmergencySOS = () => {
       description: `Connecting to ${phone}...`,
     });
     
-    // Start phone call
     setTimeout(() => {
       window.location.href = `tel:${phone.replace(/\s+/g, '')}`;
     }, 500);
   };
 
-  // Camera functionality
   const startCamera = async () => {
     try {
       setIsCameraActive(true);
@@ -267,7 +242,6 @@ const EmergencySOS = () => {
     setIsCameraActive(false);
   };
 
-  // Video recording functionality
   const startVideoRecording = async () => {
     try {
       setIsVideoActive(true);
@@ -304,7 +278,6 @@ const EmergencySOS = () => {
         description: "Recording video for emergency contact",
       });
       
-      // Automatically stop recording after 15 seconds
       setTimeout(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
           stopVideoRecording();
@@ -356,7 +329,6 @@ const EmergencySOS = () => {
         </div>
       </Button>
       
-      {/* Countdown Dialog */}
       {showDialog && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg mx-4 animate-scale-in">
@@ -426,7 +398,6 @@ const EmergencySOS = () => {
                     </div>
                   )}
                   
-                  {/* Media capture controls */}
                   <div className="bg-muted/50 rounded-lg p-4">
                     <p className="text-xs text-muted-foreground mb-2">Capture Media</p>
                     
