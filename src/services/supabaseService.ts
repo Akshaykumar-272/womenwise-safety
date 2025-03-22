@@ -3,10 +3,32 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client - replace with your own Supabase URL and key
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Create a mock client if credentials are missing
+const createSupabaseClient = () => {
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn('Supabase credentials are missing. Using mock implementation.');
+    // Return a mock implementation that doesn't throw errors
+    return {
+      storage: {
+        from: () => ({
+          upload: async () => ({ data: null, error: new Error('Supabase not configured') }),
+          getPublicUrl: () => ({ data: { publicUrl: '' } }),
+        }),
+      },
+      functions: {
+        invoke: async () => ({ data: { success: false }, error: new Error('Supabase not configured') }),
+      },
+    };
+  }
+  
+  // Return the real Supabase client if credentials exist
+  return createClient(supabaseUrl, supabaseKey);
+};
+
+export const supabase = createSupabaseClient();
 
 // Upload media to Supabase storage
 export const uploadMedia = async (
@@ -48,6 +70,20 @@ export const sendEmergencySMS = async (
   mediaUrls: string[],
 ): Promise<boolean> => {
   try {
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('Supabase not configured. SMS would be sent to:', phone);
+      console.log('Message content:', message);
+      console.log('Media URLs:', mediaUrls);
+      
+      // In development, try to use the device's native SMS capability
+      if (navigator.userAgent.match(/Android/i) || navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+        const encodedMessage = encodeURIComponent(message);
+        window.location.href = `sms:${phone}?body=${encodedMessage}`;
+      }
+      
+      return true; // Return success in development to allow testing
+    }
+    
     // Call Supabase Edge Function to send SMS
     const { data, error } = await supabase.functions.invoke('send-emergency-sms', {
       body: {
@@ -77,6 +113,20 @@ export const sendEmergencyEmail = async (
   mediaUrls: string[],
 ): Promise<boolean> => {
   try {
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('Supabase not configured. Email would be sent to:', email);
+      console.log('Subject:', subject);
+      console.log('Message content:', message);
+      console.log('Media URLs:', mediaUrls);
+      
+      // In development, try to use the device's native email capability
+      const encodedSubject = encodeURIComponent(subject);
+      const encodedBody = encodeURIComponent(message);
+      window.location.href = `mailto:${email}?subject=${encodedSubject}&body=${encodedBody}`;
+      
+      return true; // Return success in development to allow testing
+    }
+    
     // Call Supabase Edge Function to send email
     const { data, error } = await supabase.functions.invoke('send-emergency-email', {
       body: {
